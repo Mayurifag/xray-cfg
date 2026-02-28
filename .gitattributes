@@ -1,0 +1,4 @@
+*.exe binary
+*.dll binary
+*.dat binary
+*.zip binary

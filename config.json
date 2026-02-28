@@ -1,0 +1,182 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "dns": {
+    "queryStrategy": "UseIPv4",
+    "servers": [
+      "https://1.1.1.1/dns-query"
+    ]
+  },
+  "inbounds": [
+    {
+      "tag": "tun-in",
+      "protocol": "tun",
+      "settings": {
+        "name": "xray0"
+      },
+      "sniffing": {
+        "enabled": true,
+        "routeOnly": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ]
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "streamSettings": {
+        "sockopt": {
+          "mark": 255,
+          "tcpFastOpen": true,
+          "tcpNoDelay": true
+        }
+      }
+    },
+    {
+      "tag": "proxy_ru",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "PLACEHOLDER_PROXY_RU_HOST",
+            "port": 443,
+            "users": [
+              {
+                "id": "PLACEHOLDER_PROXY_RU_UUID",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "learn.microsoft.com",
+          "fingerprint": "chrome",
+          "shortId": "PLACEHOLDER_PROXY_RU_SHORT_ID",
+          "publicKey": "PLACEHOLDER_PROXY_RU_PUBLIC_KEY",
+          "spiderX": "/"
+        },
+        "xhttpSettings": {
+          "path": "/",
+          "mode": "auto"
+        },
+        "sockopt": {
+          "mark": 255,
+          "tcpFastOpen": true,
+          "tcpNoDelay": true
+        }
+      }
+    },
+    {
+      "tag": "proxy_it",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "PLACEHOLDER_PROXY_IT_HOST",
+            "port": 443,
+            "users": [
+              {
+                "id": "PLACEHOLDER_PROXY_IT_UUID",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "learn.microsoft.com",
+          "fingerprint": "chrome",
+          "shortId": "PLACEHOLDER_PROXY_IT_SHORT_ID",
+          "publicKey": "PLACEHOLDER_PROXY_IT_PUBLIC_KEY",
+          "spiderX": "/"
+        },
+        "xhttpSettings": {
+          "path": "/",
+          "mode": "auto"
+        },
+        "sockopt": {
+          "mark": 255,
+          "tcpFastOpen": true,
+          "tcpNoDelay": true
+        }
+      }
+    },
+    {
+      "tag": "dns-out",
+      "protocol": "dns",
+      "streamSettings": {
+        "sockopt": {
+          "mark": 255
+        }
+      }
+    }
+  ],
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": [
+      {
+        "inboundTag": [
+          "tun-in"
+        ],
+        "port": 53,
+        "outboundTag": "dns-out"
+      },
+      {
+        "domain": [
+          "domain:avito.ru",
+          "domain:dns-shop.ru",
+          "domain:qrator.net",
+          "domain:ident.me",
+          "domain:sportmaster.ru",
+          "geosite:category-ru"
+        ],
+        "outboundTag": "proxy_ru"
+      },
+      {
+        "domain": [
+          "domain:aeza.net",
+          "domain:eth0.me",
+          "domain:meduza.io",
+          "domain:slickdeals.net",
+          "geosite:bestbuy",
+          "geosite:category-porn",
+          "geosite:discord",
+          "geosite:linkedin",
+          "geosite:meta",
+          "geosite:netflix",
+          "geosite:openai",
+          "geosite:paypal",
+          "geosite:pinterest",
+          "geosite:rutracker",
+          "geosite:spotify",
+          "geosite:telegram",
+          "geosite:tiktok",
+          "geosite:twitter"
+        ],
+        "outboundTag": "proxy_it"
+      },
+      {
+        "ip": [
+          "geoip:facebook",
+          "geoip:netflix",
+          "geoip:telegram",
+          "geoip:twitter"
+        ],
+        "outboundTag": "proxy_it"
+      }
+    ]
+  }
+}
