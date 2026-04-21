@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Download fresh geoip.dat and geosite.dat from v2fly community releases.
+    Download fresh geoip.dat and geosite.dat.
 .DESCRIPTION
     Saves files to $TargetDir (defaults to $PSScriptRoot\v2rayn\), creating the
     directory if needed. Pass -TargetDir to place geodata next to xray.exe instead.
@@ -16,8 +16,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 if (-not $TargetDir) { $TargetDir = Join-Path $PSScriptRoot 'v2rayn' }
-$GeoipUrl   = 'https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat'
-$GeositeUrl = 'https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat'
+$GeoipUrl   = 'https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/release/geoip.dat'
+$GeositeUrl = 'https://raw.githubusercontent.com/runetfreedom/russia-blocked-geosite/release/geosite.dat'
 $GeoipPath  = Join-Path $TargetDir 'geoip.dat'
 $GeositePath = Join-Path $TargetDir 'geosite.dat'
 
@@ -38,7 +38,7 @@ if ($geoipFresh -and $geositeFresh) {
         Invoke-WebRequest -Uri $GeoipUrl -OutFile $GeoipPath -UseBasicParsing
     }
     if (-not $geositeFresh) {
-        Write-Host 'Downloading geosite.dat (from dlc.dat)...' -ForegroundColor DarkGray
+        Write-Host 'Downloading geosite.dat...' -ForegroundColor DarkGray
         Invoke-WebRequest -Uri $GeositeUrl -OutFile $GeositePath -UseBasicParsing
     }
 }

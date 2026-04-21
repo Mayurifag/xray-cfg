@@ -136,12 +136,9 @@
       },
       {
         "domain": [
-          "domain:avito.ru",
-          "domain:dns-shop.ru",
-          "domain:qrator.net",
           "domain:ident.me",
-          "domain:sportmaster.ru",
-          "geosite:category-ru"
+          "geosite:2ch",
+          "geosite:ru-available-only-inside"
         ],
         "outboundTag": "proxy_ru"
       },
@@ -154,6 +151,7 @@
           "geosite:bestbuy",
           "geosite:category-porn",
           "geosite:discord",
+          "geosite:habr",
           "geosite:linkedin",
           "geosite:meta",
           "geosite:netflix",

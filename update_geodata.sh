@@ -2,15 +2,15 @@
 set -euo pipefail
 
 ASSET_DIR=/usr/share/v2ray
-GEOIP_URL=https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
-GEOSITE_URL=https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
+GEOIP_URL=https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/release/geoip.dat
+GEOSITE_URL=https://raw.githubusercontent.com/runetfreedom/russia-blocked-geosite/release/geosite.dat
 
 sudo mkdir -p "$ASSET_DIR"
 
 echo "Downloading geoip.dat..." >&2
 sudo curl -fsSL --retry 3 --retry-delay 2 -o "$ASSET_DIR/geoip.dat" "$GEOIP_URL"
 
-echo "Downloading geosite.dat (from dlc.dat)..." >&2
+echo "Downloading geosite.dat..." >&2
 sudo curl -fsSL --retry 3 --retry-delay 2 -o "$ASSET_DIR/geosite.dat" "$GEOSITE_URL"
 
 if [[ ! -s "$ASSET_DIR/geoip.dat" ]]; then
