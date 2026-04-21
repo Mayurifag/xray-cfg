@@ -4,8 +4,10 @@ My personal proxy setup for 2 XRay VLESS outbounds. Why did I built it:
 
 - No GUI, just works. Internet without headaches like good old times.
 - Automatic domain routing with daily community-driven geodata updates.
+- Writes itself in autostart and schedulers
 - Route Russian-ip-only sites through one proxy, blocked sites through another, most traffic goes direct.
 - Seamless hosting on github, credentials protected via ejson
+- Has teardown (uninstall) and testing scripts
 - Works on Linux (systemd) and Windows (sing-box + WinTun). MacOS support incoming
 
 ## Prerequisites & Secrets
@@ -51,12 +53,6 @@ make remove-domain domain=kremlin.ru
 
 Cross-platform: Makefile dispatches to `add_domain.sh` on Linux, `windows/add_domain.ps1` on Windows.
 Both restart the proxy seamlessly to apply changes.
-
-## CI
-
-```sh
-make ci  # platform-aware: runs test.sh on Linux, cycle.ps1 on Windows
-```
 
 ## Roadmap
 
