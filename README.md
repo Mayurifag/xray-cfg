@@ -2,10 +2,11 @@
 
 My personal proxy setup for 2 XRay VLESS outbounds. Why did I built it:
 
-- No GUI, just works. Internet without headaches like good old times.
+- No GUI, no tray app, just works foreground. Internet without headaches like good old times.
 - Automatic domain routing with daily community-driven geodata updates.
 - Writes itself in autostart and schedulers
-- Route Russian-ip-only sites through one proxy, blocked sites through another, most traffic goes direct.
+- Route Russian-ip-only sites through one proxy, restricted (by government or website owners) websites through another, most traffic goes direct.
+- DNS-over-HTTPS to 1.1.1.1
 - Seamless hosting on github, credentials protected via ejson
 - Has teardown (uninstall) and testing scripts
 - Works on Linux (systemd) and Windows (sing-box + WinTun). MacOS support incoming
