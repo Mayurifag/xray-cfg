@@ -14,7 +14,7 @@ Personal proxy setup using 2 VLESS outbounds.
 ## Prerequisites
 
 **Linux:** `xray`, `ejson`, `jq`, `python3`  
-**Windows:** `ejson` in PATH, PowerShell 5.1+, run as Administrator
+**Windows:** `ejson`, `make` in PATH, Administrator account
 
 ## Usage
 
