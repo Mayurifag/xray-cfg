@@ -61,6 +61,22 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now xray-geodata.timer
 
 generate_config
+
+echo "Validating generated xray config..."
+if ! sudo /usr/bin/xray run -test -config /etc/xray/config.json >/dev/null; then
+    echo "FAIL: xray config validation failed; aborting before restart" >&2
+    exit 1
+fi
+
 sudo systemctl restart xray
 sleep 2
 sudo systemctl status xray --no-pager
+
+echo "Prefetch: warming DNS cache + VLESS handshake..."
+for url in https://ident.me https://eth0.me https://checkip.amazonaws.com; do
+    if curl -sS --max-time 10 -o /dev/null "$url"; then
+        echo "  prefetch ok: $url"
+    else
+        echo "  prefetch warn: $url (continuing)"
+    fi
+done

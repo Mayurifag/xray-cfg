@@ -5,7 +5,10 @@
   "dns": {
     "queryStrategy": "UseIPv4",
     "servers": [
-      "https://1.1.1.1/dns-query"
+      "https://1.1.1.1/dns-query",
+      "https://1.0.0.1/dns-query",
+      "https://9.9.9.9/dns-query",
+      "https://8.8.8.8/dns-query"
     ]
   },
   "inbounds": [
@@ -34,7 +37,9 @@
         "sockopt": {
           "mark": 255,
           "tcpFastOpen": true,
-          "tcpNoDelay": true
+          "tcpNoDelay": true,
+          "tcpKeepAliveIdle": 30,
+          "tcpKeepAliveInterval": 30
         }
       }
     },
@@ -72,7 +77,9 @@
         "sockopt": {
           "mark": 255,
           "tcpFastOpen": true,
-          "tcpNoDelay": true
+          "tcpNoDelay": true,
+          "tcpKeepAliveIdle": 30,
+          "tcpKeepAliveInterval": 30
         }
       }
     },
@@ -110,7 +117,9 @@
         "sockopt": {
           "mark": 255,
           "tcpFastOpen": true,
-          "tcpNoDelay": true
+          "tcpNoDelay": true,
+          "tcpKeepAliveIdle": 30,
+          "tcpKeepAliveInterval": 30
         }
       }
     },

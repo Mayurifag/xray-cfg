@@ -81,6 +81,14 @@ if ($geodataTask) {
     Write-Phase 'teardown' 'Scheduled Task xray-geodata not found - already clean.'
 }
 
+$rotateTask = Get-ScheduledTask -TaskName 'xray-logrotate' -ErrorAction SilentlyContinue
+if ($rotateTask) {
+    Unregister-ScheduledTask -TaskName 'xray-logrotate' -Confirm:$false
+    Write-Phase 'teardown' 'Scheduled Task xray-logrotate deleted.'
+} else {
+    Write-Phase 'teardown' 'Scheduled Task xray-logrotate not found - already clean.'
+}
+
 # ---------------------------------------------------------------------------
 # Phase 3: Wait for singbox_tun adapter to disappear (up to 5s)
 # ---------------------------------------------------------------------------
@@ -127,6 +135,11 @@ if ($taskStillExists -ne $null) {
 $geodataTaskStillExists = Get-ScheduledTask -TaskName 'xray-geodata' -ErrorAction SilentlyContinue
 if ($geodataTaskStillExists -ne $null) {
     $dirty += 'Scheduled Task xray-geodata still registered'
+}
+
+$rotateTaskStillExists = Get-ScheduledTask -TaskName 'xray-logrotate' -ErrorAction SilentlyContinue
+if ($rotateTaskStillExists -ne $null) {
+    $dirty += 'Scheduled Task xray-logrotate still registered'
 }
 
 if ($dirty.Count -eq 0) {

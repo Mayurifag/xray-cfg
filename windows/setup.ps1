@@ -8,7 +8,7 @@ param(
 .SYNOPSIS
     Set up xray + sing-box TUN proxy on Windows using v2rayN binaries.
 .DESCRIPTION
-    Downloads v2rayN 7.18.0, extracts xray.exe + sing-box.exe + wintun.dll,
+    Downloads v2rayN, extracts xray.exe + sing-box.exe + wintun.dll,
     places configs and geodata, starts both as hidden background processes, and
     registers a Scheduled Task for reboot persistence. Idempotent: safe to re-run.
 
@@ -37,7 +37,8 @@ $XrayConfig    = Join-Path $XrayDir      'config.json'
 $SingBoxConfig = Join-Path $V2RayNDir    'singbox-tun.json'
 $PidFile       = Join-Path $V2RayNDir    'proxy.pid'
 
-$ZipUrl  = 'https://github.com/2dust/v2rayN/releases/download/7.18.0/v2rayN-windows-64.zip'
+$V2rayNVersion = '7.20.4'
+$ZipUrl  = "https://github.com/2dust/v2rayN/releases/download/$V2rayNVersion/v2rayN-windows-64.zip"
 $ZipPath = Join-Path $V2RayNDir 'v2rayN-windows-64.zip'
 
 # Start transcript early so every phase (including boot failures) is captured
@@ -79,7 +80,7 @@ if (Test-Path $XrayExe) {
     if ($zipValid) {
         Write-Host "[setup] Using cached zip: $ZipPath ($((Get-Item $ZipPath).Length) bytes)" -ForegroundColor DarkGray
     } else {
-        Write-Host '[setup] Downloading v2rayN 7.18.0 from GitHub...' -ForegroundColor DarkGray
+        Write-Host "[setup] Downloading v2rayN $V2rayNVersion from GitHub..." -ForegroundColor DarkGray
         try {
             Invoke-WebRequest -Uri $ZipUrl -OutFile $ZipPath -UseBasicParsing
         } catch {
@@ -275,6 +276,13 @@ Register-ScheduledTask -TaskName 'xray-geodata' -Action $geodataAction -Trigger 
     -Settings $settings -Principal $principal -Force | Out-Null
 Write-Host '[setup] Scheduled Task xray-geodata registered (daily 03:00).' -ForegroundColor DarkGray
 
+$rotateAction  = New-ScheduledTaskAction -Execute 'pwsh.exe' `
+                     -Argument "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PSScriptRoot\rotate_logs.ps1`""
+$rotateTrigger = New-ScheduledTaskTrigger -Daily -At '03:30'
+Register-ScheduledTask -TaskName 'xray-logrotate' -Action $rotateAction -Trigger $rotateTrigger `
+    -Settings $settings -Principal $principal -Force | Out-Null
+Write-Host '[setup] Scheduled Task xray-logrotate registered (daily 03:30).' -ForegroundColor DarkGray
+
 # ---------------------------------------------------------------------------
 # Phase 5: Verification - wait up to 15s for TUN adapter
 # ---------------------------------------------------------------------------
@@ -307,6 +315,17 @@ if ($adapter) {
     ipconfig /flushdns 2>&1 | Out-Null
     # Flush Windows IP destination cache so new connections use the updated route table
     netsh interface ip delete destinationcache 2>&1 | Out-Null
+
+    # Prefetch: warm DNS cache + VLESS connections so first user request is fast.
+    Write-Phase 'setup' 'Phase: prefetch'
+    foreach ($url in @('https://ident.me', 'https://eth0.me', 'https://checkip.amazonaws.com')) {
+        try {
+            $null = Invoke-WebRequest -Uri $url -TimeoutSec 10 -UseBasicParsing
+            Write-Host "[setup] prefetch ok: $url" -ForegroundColor DarkGray
+        } catch {
+            Write-Host "[setup] prefetch warn: $url - $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
 
     Write-Output 'Setup complete.'
     Write-Output "  TUN adapter : $($adapter.Name) [$($adapter.InterfaceDescription)] - $($adapter.Status)"

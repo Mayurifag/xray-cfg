@@ -1,6 +1,6 @@
 {
   "log": {
-    "level": "info",
+    "level": "warn",
     "output": "singbox.log",
     "timestamp": true
   },
@@ -13,6 +13,8 @@
         "detour": "proxy"
       }
     ],
+    "strategy": "prefer_ipv4",
+    "independent_cache": true,
     "final": "dns-remote"
   },
   "inbounds": [
@@ -26,9 +28,7 @@
       "mtu": 9000,
       "auto_route": true,
       "strict_route": true,
-      "stack": "mixed",
-      "sniff": true,
-      "sniff_override_destination": false
+      "stack": "mixed"
     }
   ],
   "outbounds": [
@@ -48,16 +48,26 @@
     "final": "proxy",
     "rules": [
       {
-        "process_name": [
-          "xray.exe",
-          "sing-box.exe"
-        ],
-        "outbound": "direct"
+        "action": "sniff"
       },
       {
         "protocol": "dns",
         "action": "hijack-dns"
+      },
+      {
+        "process_name": [
+          "xray.exe",
+          "sing-box.exe"
+        ],
+        "action": "route",
+        "outbound": "direct"
       }
     ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "path": "cache.db"
+    }
   }
 }
