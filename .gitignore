@@ -28,3 +28,5 @@ tmp/
 windows/v2rayn/*
 !windows/v2rayn/.gitkeep
 !windows/v2rayn/README.md
+
+macos/runtime/

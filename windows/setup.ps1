@@ -205,9 +205,22 @@ $json = $srcConfig | ConvertTo-Json -Depth 20
 [System.IO.File]::WriteAllText($XrayConfig, $json, (New-Object System.Text.UTF8Encoding $false))
 Write-Host "[setup] Generated xray config -> $XrayConfig" -ForegroundColor DarkGray
 
-# Copy sing-box TUN config
-Copy-Item -Path "$PSScriptRoot\singbox-tun.json" -Destination $SingBoxConfig -Force
-Write-Host "[setup] Copied singbox-tun.json -> $SingBoxConfig" -ForegroundColor DarkGray
+# Generate sing-box TUN config from shared base + Windows-specific transforms.
+# shared/singbox-tun.json is the macOS variant (no interface_name, bare process names).
+# Windows needs:
+#   1. inbounds[0].interface_name = "singbox_tun"  (macOS lets sing-box auto-pick utunN)
+#   2. .exe suffix on every entry of route.rules[*].process_name (macOS uses bare names)
+$SharedSingboxPath = Join-Path (Join-Path $PSScriptRoot '..') 'shared\singbox-tun.json'
+$SingboxCfg = Get-Content $SharedSingboxPath -Raw | ConvertFrom-Json
+$SingboxCfg.inbounds[0] | Add-Member -NotePropertyName 'interface_name' -NotePropertyValue 'singbox_tun' -Force
+foreach ($rule in $SingboxCfg.route.rules) {
+    if ($rule.PSObject.Properties.Name -contains 'process_name') {
+        $rule.process_name = @($rule.process_name | ForEach-Object { "$_.exe" })
+    }
+}
+$SingboxJson = $SingboxCfg | ConvertTo-Json -Depth 20
+[System.IO.File]::WriteAllText($SingBoxConfig, $SingboxJson, (New-Object System.Text.UTF8Encoding $false))
+Write-Host "[setup] Generated singbox-tun.json (from shared/) -> $SingBoxConfig" -ForegroundColor DarkGray
 
 # Validate xray config
 Write-Host '[setup] Validating xray config...' -ForegroundColor DarkGray

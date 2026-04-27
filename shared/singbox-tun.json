@@ -21,10 +21,7 @@
     {
       "type": "tun",
       "tag": "tun-in",
-      "interface_name": "singbox_tun",
-      "address": [
-        "172.18.0.1/30"
-      ],
+      "address": ["172.18.0.1/30"],
       "mtu": 9000,
       "auto_route": true,
       "strict_route": true,
@@ -47,18 +44,10 @@
     "auto_detect_interface": true,
     "final": "proxy",
     "rules": [
+      { "action": "sniff" },
+      { "protocol": "dns", "action": "hijack-dns" },
       {
-        "action": "sniff"
-      },
-      {
-        "protocol": "dns",
-        "action": "hijack-dns"
-      },
-      {
-        "process_name": [
-          "xray.exe",
-          "sing-box.exe"
-        ],
+        "process_name": ["xray", "sing-box"],
         "action": "route",
         "outbound": "direct"
       }

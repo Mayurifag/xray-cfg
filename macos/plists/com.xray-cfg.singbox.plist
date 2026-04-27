@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.xray-cfg.singbox</string>
+    <key>UserName</key>
+    <string>root</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__REPO_ROOT__/macos/runtime/bin/sing_box/sing-box</string>
+        <string>run</string>
+        <string>-c</string>
+        <string>__REPO_ROOT__/macos/runtime/singbox-tun.json</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__REPO_ROOT__/macos/runtime</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>StandardOutPath</key>
+    <string>__REPO_ROOT__/macos/runtime/singbox-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__REPO_ROOT__/macos/runtime/singbox-stderr.log</string>
+</dict>
+</plist>

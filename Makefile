@@ -14,21 +14,38 @@ ifeq ($(OS),Windows_NT)
   cmd_geodata      := $(PS) windows/update_geodata.ps1
   cmd_add_domain   := $(PS) windows/add_domain.ps1 $(domain) $(proxy)
   cmd_rm_domain    := $(PS) windows/remove_domain.ps1 $(domain)
+else ifeq ($(shell uname),Darwin)
+  cmd_setup        := bash macos/setup.sh
+  cmd_teardown     := bash macos/teardown.sh
+  cmd_test         := bash macos/test.sh
+  cmd_cycle        := bash macos/cycle.sh
+  cmd_status       := bash macos/status.sh
+  cmd_logs         := bash macos/logs.sh
+  cmd_flush_dns    := bash macos/flush_dns.sh
+  cmd_geodata      := bash macos/update_geodata.sh
+  cmd_add_domain   := bash macos/add_domain.sh $(domain) $(proxy)
+  cmd_rm_domain    := bash macos/remove_domain.sh $(domain)
+  cmd_ci           := bash macos/ci.sh
 else
-  cmd_setup        := bash setup_linux.sh
-  cmd_teardown     := bash teardown.sh
-  cmd_test         := bash test.sh
-  cmd_cycle        := bash test.sh
+  cmd_setup        := bash linux/setup.sh
+  cmd_teardown     := bash linux/teardown.sh
+  cmd_test         := bash linux/test.sh
+  cmd_cycle        := bash linux/test.sh
   cmd_status       := sudo systemctl status xray --no-pager
   cmd_logs         := sudo journalctl -u xray -f
   cmd_flush_dns    := sudo resolvectl flush-caches
-  cmd_geodata      := bash update_geodata.sh
-  cmd_add_domain   := bash add_domain.sh $(domain) $(proxy)
-  cmd_rm_domain    := bash remove_domain.sh $(domain)
+  cmd_geodata      := bash linux/update_geodata.sh
+  cmd_add_domain   := bash linux/add_domain.sh $(domain) $(proxy)
+  cmd_rm_domain    := bash linux/remove_domain.sh $(domain)
 endif
 
 # ── targets ───────────────────────────────────────────────────────────────────
+ifdef cmd_ci
+ci:
+	$(cmd_ci)
+else
 ci: cycle
+endif
 
 setup:
 	$(cmd_setup)

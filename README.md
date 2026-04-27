@@ -11,12 +11,34 @@ Personal proxy setup using 2 VLESS outbounds.
 - DNS-over-HTTPS to 1.1.1.1
 - Seamless hosting on github, credentials protected via ejson
 - Has teardown (uninstall), testing and other scripts
-- Works on Linux (systemd) and Windows (sing-box + WinTun). MacOS support incoming
+- Works on Linux (systemd), Windows (sing-box + WinTun), and macOS (sing-box + utun via launchd)
 
 ## Prerequisites
 
 **Linux:** `xray`, `ejson`, `jq`, `python3`  
-**Windows:** `ejson`, `make` in PATH, Administrator account
+**Windows:** `ejson`, `make` in PATH, Administrator account  
+**macOS:** `ejson`, `python3`, `make` (Xcode CLT or brew), admin user (`jq` auto-installed via brew if missing)
+
+### macOS: disable Touch ID for sudo (one-time)
+
+Setup/teardown/test scripts feed the sudo password from `secrets.ejson` via 
+`sudo -S -k`. macOS PAM puts Touch ID (`pam_tid.so`) ahead of stdin auth, so 
+`sudo` pops a system password dialog every run and the piped password only 
+takes effect after you cancel it. Disable Touch ID for sudo:
+
+~~~sh
+sudo cp /etc/pam.d/sudo_local /etc/pam.d/sudo_local.bak.xraycfg
+sudo sed -i '' 's|^auth       sufficient     pam_tid.so|# auth       sufficient     pam_tid.so|' /etc/pam.d/sudo_local
+~~~
+
+To restore Touch ID for sudo:
+
+~~~sh
+sudo cp /etc/pam.d/sudo_local.bak.xraycfg /etc/pam.d/sudo_local
+~~~
+
+This is a system-wide change to `sudo` only — Touch ID for screen unlock and 
+other apps is unaffected.
 
 ## Usage
 
@@ -84,8 +106,7 @@ function xray-remove($d)               { xray-rm $d }
 
 ## Roadmap
 
-- **Linux:** move scripts into `linux/` subfolder (parallel with `windows/`)
-- **macOS:** fully working version
+- (no current roadmap items — Linux/Windows/macOS all live)
 
 ## Notes
 

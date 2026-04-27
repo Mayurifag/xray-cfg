@@ -2,8 +2,9 @@
 set -euo pipefail
 
 ASSET_DIR=/usr/share/v2ray
-GEOIP_URL=https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/release/geoip.dat
-GEOSITE_URL=https://raw.githubusercontent.com/runetfreedom/russia-blocked-geosite/release/geosite.dat
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$REPO_ROOT/shared/geodata_urls.sh"
 
 sudo mkdir -p "$ASSET_DIR"
 
