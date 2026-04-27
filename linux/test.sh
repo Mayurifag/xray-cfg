@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIG_FILE="$REPO_ROOT/config.json"
+source "$REPO_ROOT/shared/test_urls.sh"
 
 check_ip() {
     local url="$1"
@@ -38,9 +39,9 @@ echo "  DNS check: xray0 interface gone from systemd-resolved (DNS restored)"
 
 echo "=== Verify: proxy down ==="
 
-DIRECT_IP=$(check_ip "https://checkip.amazonaws.com")
-IT_IP=$(check_ip "https://eth0.me")
-RU_IP=$(check_ip "https://ident.me")
+DIRECT_IP=$(check_ip "$DIRECT_TEST_URL")
+IT_IP=$(check_ip "$PROXY_IT_TEST_URL")
+RU_IP=$(check_ip "$PROXY_RU_TEST_URL")
 
 assert_nonempty "checkip.amazonaws.com" "$DIRECT_IP"
 assert_nonempty "eth0.me" "$IT_IP"
@@ -71,9 +72,9 @@ echo "  setup.sh exited 0."
 
 echo "=== Verify: outbounds distinct ==="
 
-DIRECT_IP=$(check_ip "https://checkip.amazonaws.com")
-IT_IP=$(check_ip "https://eth0.me")
-RU_IP=$(check_ip "https://ident.me")
+DIRECT_IP=$(check_ip "$DIRECT_TEST_URL")
+IT_IP=$(check_ip "$PROXY_IT_TEST_URL")
+RU_IP=$(check_ip "$PROXY_RU_TEST_URL")
 
 assert_nonempty "checkip.amazonaws.com (direct)" "$DIRECT_IP"
 assert_nonempty "eth0.me (proxy_it)" "$IT_IP"
@@ -91,8 +92,8 @@ echo "  All three outbounds route to distinct IPs."
 echo "=== Verify: QUIC (HTTP/3) routing ==="
 
 if curl --http3 -V >/dev/null 2>&1; then
-    QUIC_IT=$(curl -s --http3 --max-time 10 "https://eth0.me" | tr -d '[:space:]')
-    QUIC_RU=$(curl -s --http3 --max-time 10 "https://ident.me" | tr -d '[:space:]')
+    QUIC_IT=$(curl -s --http3 --max-time 10 "$PROXY_IT_TEST_URL" | tr -d '[:space:]')
+    QUIC_RU=$(curl -s --http3 --max-time 10 "$PROXY_RU_TEST_URL" | tr -d '[:space:]')
 
     assert_nonempty "eth0.me QUIC (proxy_it)" "$QUIC_IT"
     assert_nonempty "ident.me QUIC (proxy_ru)" "$QUIC_RU"

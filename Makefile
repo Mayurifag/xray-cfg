@@ -14,6 +14,7 @@ ifeq ($(OS),Windows_NT)
   cmd_geodata      := $(PS) windows/update_geodata.ps1
   cmd_add_domain   := $(PS) windows/add_domain.ps1 $(domain) $(proxy)
   cmd_rm_domain    := $(PS) windows/remove_domain.ps1 $(domain)
+  cmd_ci           := $(PS) windows/ci.ps1
 else ifeq ($(shell uname),Darwin)
   cmd_setup        := bash macos/setup.sh
   cmd_teardown     := bash macos/teardown.sh
@@ -30,7 +31,7 @@ else
   cmd_setup        := bash linux/setup.sh
   cmd_teardown     := bash linux/teardown.sh
   cmd_test         := bash linux/test.sh
-  cmd_cycle        := bash linux/test.sh
+  cmd_cycle        := bash linux/cycle.sh
   cmd_status       := sudo systemctl status xray --no-pager
   cmd_logs         := sudo journalctl -u xray -f
   cmd_flush_dns    := sudo resolvectl flush-caches

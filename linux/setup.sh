@@ -1,9 +1,10 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/common.sh"
+source "$REPO_ROOT/shared/test_urls.sh"
 
 if ! command -v xray &>/dev/null; then
     yay -S --noconfirm xray-bin
@@ -74,7 +75,7 @@ sleep 2
 sudo systemctl status xray --no-pager
 
 echo "Prefetch: warming DNS cache + VLESS handshake..."
-for url in https://ident.me https://eth0.me https://checkip.amazonaws.com; do
+for url in "${ALL_TEST_URLS[@]}"; do
     if curl -sS --max-time 10 -o /dev/null "$url"; then
         echo "  prefetch ok: $url"
     else

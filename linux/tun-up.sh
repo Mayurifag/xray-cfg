@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 until ip link show xray0 >/dev/null 2>&1; do sleep 0.1; done
 ip addr add 172.19.0.1/30 dev xray0 2>/dev/null || true

@@ -4,6 +4,7 @@ param(
     [switch]$Boot  # Set when invoked by Scheduled Task; adds pre-flight delay + internet check
 )
 . "$PSScriptRoot\common.ps1"
+. (Join-Path $PSScriptRoot '..\shared\test_urls.ps1')
 <#
 .SYNOPSIS
     Set up xray + sing-box TUN proxy on Windows using v2rayN binaries.
@@ -182,17 +183,7 @@ $srcConfig.inbounds = @(
 )
 
 # Transform 2: strip mark from every sockopt; drop empty sockopt/streamSettings
-foreach ($ob in $srcConfig.outbounds) {
-    if ($null -ne $ob.streamSettings -and $null -ne $ob.streamSettings.sockopt) {
-        $ob.streamSettings.sockopt.PSObject.Properties.Remove('mark')
-        if (-not (@($ob.streamSettings.sockopt.PSObject.Properties).Count -gt 0)) {
-            $ob.streamSettings.PSObject.Properties.Remove('sockopt')
-        }
-        if (-not (@($ob.streamSettings.PSObject.Properties).Count -gt 0)) {
-            $ob.PSObject.Properties.Remove('streamSettings')
-        }
-    }
-}
+foreach ($ob in $srcConfig.outbounds) { Remove-SockoptMark -Outbound $ob }
 
 # Transform 3: drop the port-53 routing rule (has inboundTag; Windows uses SOCKS, not TUN)
 $srcConfig.routing.rules = $srcConfig.routing.rules |
@@ -331,7 +322,7 @@ if ($adapter) {
 
     # Prefetch: warm DNS cache + VLESS connections so first user request is fast.
     Write-Phase 'setup' 'Phase: prefetch'
-    foreach ($url in @('https://ident.me', 'https://eth0.me', 'https://checkip.amazonaws.com')) {
+    foreach ($url in $AllTestUrls) {
         try {
             $null = Invoke-WebRequest -Uri $url -TimeoutSec 10 -UseBasicParsing
             Write-Host "[setup] prefetch ok: $url" -ForegroundColor DarkGray

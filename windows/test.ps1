@@ -17,6 +17,7 @@ param(
     [string]$Mode
 )
 . "$PSScriptRoot\common.ps1"
+. (Join-Path $PSScriptRoot '..\shared\test_urls.ps1')
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -33,79 +34,8 @@ if ($Mode -ne 'direct') {
     $proxyItHost = $secrets.proxy_it.host
 }
 
-# ---------------------------------------------------------------------------
-# Counters
-# ---------------------------------------------------------------------------
 $script:pass = 0
 $script:fail = 0
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-function Write-Result {
-    param(
-        [string]$Name,
-        [bool]$Passed,
-        [string]$Detail = ''
-    )
-    if ($Passed) {
-        Write-Host "[test] PASS: $Name" -ForegroundColor Green
-        $script:pass++
-    } else {
-        if ($Detail) {
-            Write-Host "[test] FAIL: $Name - $Detail" -ForegroundColor Red
-        } else {
-            Write-Host "[test] FAIL: $Name" -ForegroundColor Red
-        }
-        $script:fail++
-    }
-}
-
-function Test-Outbound {
-    param(
-        [string]$Label,
-        [string]$Url
-    )
-    try {
-        $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 15
-        $ip = $resp.Content.Trim()
-        return $ip
-    } catch {
-        Write-Result -Name $Label -Passed $false -Detail "HTTP request failed: $_"
-        return $null
-    }
-}
-
-function Test-OutboundQuic {
-    param(
-        [string]$Label,
-        [string]$Url
-    )
-    try {
-        $env:_QUIC_URL = $Url
-        $raw = & pwsh -NoProfile -Command '
-            $h = [System.Net.Http.SocketsHttpHandler]::new()
-            $c = [System.Net.Http.HttpClient]::new($h)
-            $c.Timeout = [TimeSpan]::FromSeconds(15)
-            $r = [System.Net.Http.HttpRequestMessage]::new(
-                [System.Net.Http.HttpMethod]::Get, $env:_QUIC_URL)
-            $r.Version = [System.Version]::new(3, 0)
-            $r.VersionPolicy = [System.Net.Http.HttpVersionPolicy]::RequestVersionExact
-            $resp = $c.SendAsync($r).GetAwaiter().GetResult()
-            $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult().Trim()
-            $c.Dispose(); $h.Dispose()
-        ' 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Result -Name $Label -Passed $false -Detail "pwsh exited $LASTEXITCODE`: $raw"
-            return $null
-        }
-        return ($raw | Select-Object -Last 1).Trim()
-    } catch {
-        Write-Result -Name $Label -Passed $false -Detail "QUIC request failed: $_"
-        return $null
-    }
-}
 
 # ---------------------------------------------------------------------------
 # Pre-flight state checks (skipped in direct mode)
@@ -131,13 +61,13 @@ if ($Mode -ne 'direct') {
 if ($Mode -eq 'all') {
     Write-Host '[test] Outbound IP tests (all three outbounds)...' -ForegroundColor Cyan
 
-    $directIp = Test-Outbound -Label 'outbound: checkip.amazonaws.com (direct)' -Url 'https://checkip.amazonaws.com'
+    $directIp = Test-Outbound -Label 'outbound: checkip.amazonaws.com (direct)' -Url $DirectTestUrl
     Write-Result -Name 'outbound: direct IP non-empty' -Passed ($directIp -ne $null -and $directIp -ne '')
 
-    $itIp = Test-Outbound -Label 'outbound: eth0.me (proxy_it)' -Url 'https://eth0.me'
+    $itIp = Test-Outbound -Label 'outbound: eth0.me (proxy_it)' -Url $ProxyItTestUrl
     Write-Result -Name 'outbound: proxy_it IP non-empty' -Passed ($itIp -ne $null -and $itIp -ne '')
 
-    $ruIp = Test-Outbound -Label 'outbound: ident.me (proxy_ru)' -Url 'https://ident.me'
+    $ruIp = Test-Outbound -Label 'outbound: ident.me (proxy_ru)' -Url $ProxyRuTestUrl
     Write-Result -Name 'outbound: proxy_ru IP non-empty' -Passed ($ruIp -ne $null -and $ruIp -ne '')
 
     if ($directIp -and $itIp -and $ruIp) {
@@ -159,7 +89,7 @@ if ($Mode -eq 'all') {
 
 if ($Mode -eq 'proxy_ru') {
     Write-Host '[test] Outbound IP test (proxy_ru)...' -ForegroundColor Cyan
-    $ruIp = Test-Outbound -Label 'outbound: ident.me (proxy_ru)' -Url 'https://ident.me'
+    $ruIp = Test-Outbound -Label 'outbound: ident.me (proxy_ru)' -Url $ProxyRuTestUrl
     Write-Result -Name 'outbound: proxy_ru IP non-empty' -Passed ($ruIp -ne $null -and $ruIp -ne '')
     if ($ruIp) {
         Write-Host "[test] proxy_ru IP: $ruIp" -ForegroundColor DarkGray
@@ -168,7 +98,7 @@ if ($Mode -eq 'proxy_ru') {
 
 if ($Mode -eq 'proxy_it') {
     Write-Host '[test] Outbound IP test (proxy_it)...' -ForegroundColor Cyan
-    $itIp = Test-Outbound -Label 'outbound: eth0.me (proxy_it)' -Url 'https://eth0.me'
+    $itIp = Test-Outbound -Label 'outbound: eth0.me (proxy_it)' -Url $ProxyItTestUrl
     Write-Result -Name 'outbound: proxy_it IP non-empty' -Passed ($itIp -ne $null -and $itIp -ne '')
     if ($itIp) {
         Write-Host "[test] proxy_it IP: $itIp" -ForegroundColor DarkGray
@@ -184,12 +114,12 @@ if ($Mode -ne 'direct' -and $hasPwsh) {
     Write-Host '[test] QUIC (HTTP/3) outbound tests...' -ForegroundColor Cyan
 
     if ($Mode -eq 'all' -or $Mode -eq 'proxy_it') {
-        $quicIt = Test-OutboundQuic -Label 'quic: eth0.me (proxy_it)' -Url 'https://eth0.me'
+        $quicIt = Test-OutboundQuic -Label 'quic: eth0.me (proxy_it)' -Url $ProxyItTestUrl
         Write-Result -Name 'quic: proxy_it IP non-empty' -Passed ($quicIt -ne $null -and $quicIt -ne '')
     }
 
     if ($Mode -eq 'all' -or $Mode -eq 'proxy_ru') {
-        $quicRu = Test-OutboundQuic -Label 'quic: ident.me (proxy_ru)' -Url 'https://ident.me'
+        $quicRu = Test-OutboundQuic -Label 'quic: ident.me (proxy_ru)' -Url $ProxyRuTestUrl
         Write-Result -Name 'quic: proxy_ru IP non-empty' -Passed ($quicRu -ne $null -and $quicRu -ne '')
     }
 
@@ -349,9 +279,9 @@ if ($Mode -eq 'direct') {
     # Verify: all three checkers should return the same real IP
     Write-Host '[test] Verifying all checkers return same IP (proxy down)...' -ForegroundColor Cyan
 
-    $d = Test-Outbound -Label 'direct-verify: checkip.amazonaws.com' -Url 'https://checkip.amazonaws.com'
-    $i = Test-Outbound -Label 'direct-verify: eth0.me' -Url 'https://eth0.me'
-    $r = Test-Outbound -Label 'direct-verify: ident.me' -Url 'https://ident.me'
+    $d = Test-Outbound -Label 'direct-verify: checkip.amazonaws.com' -Url $DirectTestUrl
+    $i = Test-Outbound -Label 'direct-verify: eth0.me' -Url $ProxyItTestUrl
+    $r = Test-Outbound -Label 'direct-verify: ident.me' -Url $ProxyRuTestUrl
 
     Write-Result -Name 'direct-verify: checkip.amazonaws.com non-empty' -Passed ($d -ne $null -and $d -ne '')
     Write-Result -Name 'direct-verify: eth0.me non-empty' -Passed ($i -ne $null -and $i -ne '')
@@ -374,16 +304,16 @@ if ($Mode -eq 'direct') {
         Write-Result -Name 'direct-verify: setup.ps1 exited 0' -Passed $false -Detail "$_"
     }
 
-    foreach ($uri in @('https://checkip.amazonaws.com', 'https://eth0.me', 'https://ident.me')) {
+    foreach ($uri in $AllTestUrls) {
         $null = [System.Net.ServicePointManager]::FindServicePoint($uri).CloseConnectionGroup('')
     }
 
     # After restart: verify distinct IPs again
     Write-Host '[test] Verifying distinct outbound IPs after restart...' -ForegroundColor Cyan
 
-    $d2 = Test-Outbound -Label 'post-restart: checkip.amazonaws.com (direct)' -Url 'https://checkip.amazonaws.com'
-    $i2 = Test-Outbound -Label 'post-restart: eth0.me (proxy_it)' -Url 'https://eth0.me'
-    $r2 = Test-Outbound -Label 'post-restart: ident.me (proxy_ru)' -Url 'https://ident.me'
+    $d2 = Test-Outbound -Label 'post-restart: checkip.amazonaws.com (direct)' -Url $DirectTestUrl
+    $i2 = Test-Outbound -Label 'post-restart: eth0.me (proxy_it)' -Url $ProxyItTestUrl
+    $r2 = Test-Outbound -Label 'post-restart: ident.me (proxy_ru)' -Url $ProxyRuTestUrl
 
     Write-Result -Name 'post-restart: direct IP non-empty' -Passed ($d2 -ne $null -and $d2 -ne '')
     Write-Result -Name 'post-restart: proxy_it IP non-empty' -Passed ($i2 -ne $null -and $i2 -ne '')

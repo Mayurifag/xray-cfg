@@ -117,3 +117,8 @@ function xray-remove($d)               { xray-rm $d }
   `2a02:e00:ffec:4b8::1`) are unreachable from this setup. xray DNS is pinned 
   to `queryStrategy: UseIPv4`; do not switch to `UseIP` until both ends gain 
   IPv6.
+- Windows uses the v2rayN release ZIP only as a packaging source for three 
+  files: `xray.exe`, `sing-box.exe`, and `wintun.dll`. The v2rayN GUI itself is 
+  unused. Bundling them in one pinned release avoids tracking three separate 
+  upstreams and sidesteps version-skew risk between `sing-box` and the WinTun 
+  driver ABI.

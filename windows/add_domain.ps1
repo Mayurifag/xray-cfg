@@ -56,20 +56,6 @@ if ([string]::IsNullOrWhiteSpace($Domain)) {
     $Domain = Read-Host 'Enter domain (e.g. example.com)'
 }
 
-# Format: strip scheme + path, normalise prefix
-function Format-Domain([string]$d) {
-    $prefix = 'domain:'
-    if ($d -match '^geosite:') {
-        return $d
-    }
-    if ($d -match '^domain:') {
-        $d = $d -replace '^domain:', ''
-    }
-    $d = $d -replace '^https?://', ''
-    $d = ($d -split '/')[0]
-    return "${prefix}${d}"
-}
-
 $Domain = Format-Domain $Domain
 
 # --- collect proxy tags that have domain arrays ---

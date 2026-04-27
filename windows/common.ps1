@@ -42,6 +42,95 @@ function Invoke-GitPullIfClean {
     }
 }
 
+function Remove-SockoptMark {
+    param([Parameter(Mandatory)]$Outbound)
+    if ($null -eq $Outbound.streamSettings -or $null -eq $Outbound.streamSettings.sockopt) { return }
+    $Outbound.streamSettings.sockopt.PSObject.Properties.Remove('mark')
+    if (@($Outbound.streamSettings.sockopt.PSObject.Properties).Count -eq 0) {
+        $Outbound.streamSettings.PSObject.Properties.Remove('sockopt')
+    }
+    if (@($Outbound.streamSettings.PSObject.Properties).Count -eq 0) {
+        $Outbound.PSObject.Properties.Remove('streamSettings')
+    }
+}
+
+function Write-Result {
+    param(
+        [string]$Name,
+        [bool]$Passed,
+        [string]$Detail = ''
+    )
+    if ($Passed) {
+        Write-Host "[test] PASS: $Name" -ForegroundColor Green
+        $script:pass++
+    } else {
+        if ($Detail) {
+            Write-Host "[test] FAIL: $Name - $Detail" -ForegroundColor Red
+        } else {
+            Write-Host "[test] FAIL: $Name" -ForegroundColor Red
+        }
+        $script:fail++
+    }
+}
+
+function Test-Outbound {
+    param(
+        [string]$Label,
+        [string]$Url
+    )
+    try {
+        $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 15
+        return $resp.Content.Trim()
+    } catch {
+        Write-Result -Name $Label -Passed $false -Detail "HTTP request failed: $_"
+        return $null
+    }
+}
+
+function Test-OutboundQuic {
+    param(
+        [string]$Label,
+        [string]$Url
+    )
+    try {
+        $env:_QUIC_URL = $Url
+        $raw = & pwsh -NoProfile -Command '
+            $h = [System.Net.Http.SocketsHttpHandler]::new()
+            $c = [System.Net.Http.HttpClient]::new($h)
+            $c.Timeout = [TimeSpan]::FromSeconds(15)
+            $r = [System.Net.Http.HttpRequestMessage]::new(
+                [System.Net.Http.HttpMethod]::Get, $env:_QUIC_URL)
+            $r.Version = [System.Version]::new(3, 0)
+            $r.VersionPolicy = [System.Net.Http.HttpVersionPolicy]::RequestVersionExact
+            $resp = $c.SendAsync($r).GetAwaiter().GetResult()
+            $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult().Trim()
+            $c.Dispose(); $h.Dispose()
+        ' 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Result -Name $Label -Passed $false -Detail "pwsh exited $LASTEXITCODE`: $raw"
+            return $null
+        }
+        return ($raw | Select-Object -Last 1).Trim()
+    } catch {
+        Write-Result -Name $Label -Passed $false -Detail "QUIC request failed: $_"
+        return $null
+    }
+}
+
+function Format-Domain {
+    param([string]$Domain)
+    $prefix = 'domain:'
+    if ($Domain -match '^geosite:' -or $Domain -match '^geoip:') {
+        return $Domain
+    }
+    if ($Domain -match '^domain:') {
+        $Domain = $Domain -replace '^domain:', ''
+    }
+    $Domain = $Domain -replace '^https?://', ''
+    $Domain = ($Domain -split '/')[0]
+    return "${prefix}${Domain}"
+}
+
 function Invoke-GitCommitAndPush {
     param([string]$RepoRoot, [string]$CommitMessage)
     Push-Location $RepoRoot

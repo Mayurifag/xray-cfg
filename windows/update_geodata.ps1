@@ -16,8 +16,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 if (-not $TargetDir) { $TargetDir = Join-Path $PSScriptRoot 'v2rayn' }
-$GeoipUrl   = 'https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/release/geoip.dat'
-$GeositeUrl = 'https://raw.githubusercontent.com/runetfreedom/russia-blocked-geosite/release/geosite.dat'
+. (Join-Path $PSScriptRoot '..\shared\geodata_urls.ps1')
 $GeoipPath  = Join-Path $TargetDir 'geoip.dat'
 $GeositePath = Join-Path $TargetDir 'geosite.dat'
 

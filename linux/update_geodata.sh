@@ -8,24 +8,36 @@ source "$REPO_ROOT/shared/geodata_urls.sh"
 
 sudo mkdir -p "$ASSET_DIR"
 
-echo "Downloading geoip.dat..." >&2
-sudo curl -fsSL --retry 3 --retry-delay 2 -o "$ASSET_DIR/geoip.dat" "$GEOIP_URL"
+GEOIP_PATH="$ASSET_DIR/geoip.dat"
+GEOSITE_PATH="$ASSET_DIR/geosite.dat"
 
-echo "Downloading geosite.dat..." >&2
-sudo curl -fsSL --retry 3 --retry-delay 2 -o "$ASSET_DIR/geosite.dat" "$GEOSITE_URL"
+needs_update() {
+    local f="$1"
+    [[ ! -s "$f" ]] && return 0
+    local now mtime age_secs
+    now=$(date +%s)
+    mtime=$(stat -c %Y "$f")
+    age_secs=$((now - mtime))
+    (( age_secs > 86400 ))
+}
 
-if [[ ! -s "$ASSET_DIR/geoip.dat" ]]; then
-    echo "Error: $ASSET_DIR/geoip.dat is empty or missing" >&2
-    exit 1
+download() {
+    local url="$1" dst="$2"
+    sudo curl -fsSL --retry 3 --retry-delay 2 -o "$dst.tmp" "$url"
+    sudo mv "$dst.tmp" "$dst"
+}
+
+if needs_update "$GEOIP_PATH"; then
+    echo "Downloading geoip.dat..." >&2
+    download "$GEOIP_URL" "$GEOIP_PATH"
 fi
 
-if [[ ! -s "$ASSET_DIR/geosite.dat" ]]; then
-    echo "Error: $ASSET_DIR/geosite.dat is empty or missing" >&2
-    exit 1
+if needs_update "$GEOSITE_PATH"; then
+    echo "Downloading geosite.dat..." >&2
+    download "$GEOSITE_URL" "$GEOSITE_PATH"
 fi
 
-GEOIP_SIZE=$(stat -c '%s' "$ASSET_DIR/geoip.dat")
-GEOSITE_SIZE=$(stat -c '%s' "$ASSET_DIR/geosite.dat")
+[[ -s "$GEOIP_PATH" ]]   || { echo "Error: $GEOIP_PATH empty"   >&2; exit 1; }
+[[ -s "$GEOSITE_PATH" ]] || { echo "Error: $GEOSITE_PATH empty" >&2; exit 1; }
 
-echo "Downloaded: $ASSET_DIR/geoip.dat ($GEOIP_SIZE bytes)"
-echo "Downloaded: $ASSET_DIR/geosite.dat ($GEOSITE_SIZE bytes)"
+echo "Geodata: $(stat -c '%s bytes' "$GEOIP_PATH") geoip, $(stat -c '%s bytes' "$GEOSITE_PATH") geosite"

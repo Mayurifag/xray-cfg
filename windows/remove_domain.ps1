@@ -51,19 +51,6 @@ if ([string]::IsNullOrWhiteSpace($Domain)) {
     $Domain = Read-Host 'Enter entry to remove (e.g. example.com, geoip:google, geosite:youtube)'
 }
 
-function Format-Domain([string]$d) {
-    $prefix = 'domain:'
-    if ($d -match '^geosite:' -or $d -match '^geoip:') {
-        return $d
-    }
-    if ($d -match '^domain:') {
-        $d = $d -replace '^domain:', ''
-    }
-    $d = $d -replace '^https?://', ''
-    $d = ($d -split '/')[0]
-    return "${prefix}${d}"
-}
-
 $Domain = Format-Domain $Domain
 $prop = if ($Domain -match '^geoip:') { 'ip' } else { 'domain' }
 
