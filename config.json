@@ -145,6 +145,7 @@
       },
       {
         "domain": [
+          "domain:donationalerts.com",
           "domain:ident.me",
           "geosite:2ch",
           "geosite:ru-available-only-inside"
