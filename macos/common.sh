@@ -93,6 +93,18 @@ generate_xray_config() {
 }
 
 restart_proxy() {
+    # Runtime config dir is root-owned (LaunchDaemon installs as root),
+    # and `launchctl kickstart system/...` needs root. Elevate when called
+    # from non-root callers like add_domain.sh / remove_domain.sh.
+    if [[ $EUID -ne 0 ]]; then
+        echo "[macos] restart_proxy: elevating to root via secrets.ejson" >&2
+        local pw
+        pw=$(ejson_decrypt_secret macos_sudo_password)
+        printf '%s\n' "$pw" | sudo -S -k -p '' \
+            env REPO_ROOT="$REPO_ROOT" \
+            bash -c 'source "$REPO_ROOT/macos/common.sh" && restart_proxy'
+        return $?
+    fi
     generate_xray_config
     echo "[macos] kickstart xray daemon..." >&2
     launchctl kickstart -k system/com.xray-cfg.xray
