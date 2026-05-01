@@ -1,2 +1,4 @@
 #!/bin/bash
-exec sudo journalctl -u xray -f
+cd "$(dirname "$0")/.."
+source linux/common.sh
+exec sudo journalctl -u "$SERVICE_NAME" -f

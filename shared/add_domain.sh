@@ -1,17 +1,14 @@
 #!/bin/bash
-# Cross-platform add-domain core. Caller must source platform common.sh first
-# (which defines `restart_proxy`) and export REPO_ROOT.
+# Cross-platform add-domain core. Caller must cd to repo root, source platform
+# common.sh (defines restart_proxy), and export RESTART_HOOK=restart_proxy.
 set -euo pipefail
 
-: "${REPO_ROOT:?REPO_ROOT must be set by caller}"
 : "${RESTART_HOOK:?RESTART_HOOK must be set by caller}"
-
-source "$REPO_ROOT/shared/common.sh"
 
 ensure_jq
 
 if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
-    echo "Error: config.json is not valid JSON. Aborting."
+    echo "Error: $CONFIG_FILE is not valid JSON. Aborting." >&2
     exit 1
 fi
 
@@ -20,75 +17,51 @@ git_pull_if_clean
 DOMAIN=${1:-}
 PROXY_INPUT=${2:-}
 
-if [[ -z "$DOMAIN" ]]; then
-    read -p "Enter domain (e.g., example.com): " DOMAIN
-fi
+[[ -n "$DOMAIN" ]] || read -rp 'Enter domain (e.g. example.com): ' DOMAIN
 DOMAIN=$(format_domain "$DOMAIN")
 
-# bash 3.2 compat: no mapfile
 TAGS=()
-while IFS= read -r line; do
-    TAGS+=("$line")
-done < <(get_proxy_tags)
-
-if [[ ${#TAGS[@]} -eq 0 ]]; then
-    echo "Error: No outbound rules with domains found in config.json."
-    exit 1
-fi
+while IFS= read -r line; do TAGS+=("$line"); done < <(get_proxy_tags)
+(( ${#TAGS[@]} > 0 )) || { echo "Error: no outbound rules with .domain in $CONFIG_FILE." >&2; exit 1; }
 
 if [[ -z "$PROXY_INPUT" ]]; then
-    echo "Available proxy tags:"
-    for i in "${!TAGS[@]}"; do
-        echo "$((i+1))) ${TAGS[$i]}"
-    done
-
+    echo 'Available proxy tags:'
+    for i in "${!TAGS[@]}"; do echo "$((i+1))) ${TAGS[$i]}"; done
     while true; do
-        read -p "Select proxy by number (1-${#TAGS[@]}): " choice
+        read -rp "Select proxy by number (1-${#TAGS[@]}): " choice
         if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#TAGS[@]} )); then
-            PROXY="${TAGS[$((choice-1))]}"
-            break
-        else
-            echo "Invalid selection. Try again."
+            PROXY="${TAGS[$((choice-1))]}"; break
         fi
+        echo 'Invalid selection.'
     done
+elif [[ "$PROXY_INPUT" =~ ^[0-9]+$ ]] && (( PROXY_INPUT >= 1 && PROXY_INPUT <= ${#TAGS[@]} )); then
+    PROXY="${TAGS[$((PROXY_INPUT-1))]}"
+elif printf ' %s ' "${TAGS[@]}" | grep -q " ${PROXY_INPUT} "; then
+    PROXY="$PROXY_INPUT"
 else
-    if [[ "$PROXY_INPUT" =~ ^[0-9]+$ ]] && (( PROXY_INPUT >= 1 && PROXY_INPUT <= ${#TAGS[@]} )); then
-        PROXY="${TAGS[$((PROXY_INPUT-1))]}"
-    elif [[ " ${TAGS[*]} " =~ " ${PROXY_INPUT} " ]]; then
-        PROXY="$PROXY_INPUT"
-    else
-        echo "Error: Invalid proxy tag or number: $PROXY_INPUT"
-        exit 1
-    fi
+    echo "Error: invalid proxy: $PROXY_INPUT" >&2; exit 1
 fi
 
-ALREADY_PRESENT=$(jq --arg tag "$PROXY" --arg dom "$DOMAIN" \
-  '[.routing.rules[] | select(.outboundTag == $tag) | (.domain // []) | contains([$dom])] | any' \
+ALREADY=$(jq --arg tag "$PROXY" --arg dom "$DOMAIN" \
+  '[.route.rules[] | select(.outbound == $tag) | (.domain // []) | contains([$dom])] | any' \
   "$CONFIG_FILE")
-
-if [[ "$ALREADY_PRESENT" == "true" ]]; then
-    echo "No-op: $DOMAIN is already in $PROXY. No changes made."
+if [[ "$ALREADY" == "true" ]]; then
+    echo "No-op: $DOMAIN already in $PROXY."
     exit 0
 fi
 
 jq --arg tag "$PROXY" --arg dom "$DOMAIN" '
-  .routing.rules = [
-    .routing.rules[] |
-    if .outboundTag == $tag then
+  .route.rules = [
+    .route.rules[] |
+    if .outbound == $tag and (.domain != null) then
       .domain = ((.domain + [$dom]) | unique)
-    else
-      .
-    end
+    else . end
   ]
 ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp"
 
-if ! jq empty "$CONFIG_FILE.tmp" 2>/dev/null; then
-    rm -f "$CONFIG_FILE.tmp"
-    echo "Error: jq produced invalid JSON. config.json unchanged."
-    exit 1
-fi
+jq empty "$CONFIG_FILE.tmp" >/dev/null || { rm -f "$CONFIG_FILE.tmp"; echo 'jq produced invalid JSON' >&2; exit 1; }
 mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
-echo "Success: Added $DOMAIN to $PROXY outbound rule."
+echo "Added $DOMAIN to $PROXY."
 git_commit_and_push "chore(routing): add $DOMAIN to $PROXY"
 
 "$RESTART_HOOK"

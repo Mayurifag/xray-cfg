@@ -1,30 +1,18 @@
 #!/bin/bash
-# Linux-specific helpers. Sources shared/common.sh first.
+# Linux-specific helpers. Sourced after caller cd's to repo root.
 
-SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+source shared/common.sh
 
-source "$REPO_ROOT/shared/common.sh"
+RUNTIME_DIR=linux/runtime
+SINGBOX_BIN="$RUNTIME_DIR/bin/sing-box"
+SINGBOX_CONFIG="$RUNTIME_DIR/config.json"
+RULE_SET_DIR="$RUNTIME_DIR/rule-sets"
+GEODATA_DIR="$RUNTIME_DIR/geodata"
 
-ensure_jq() {
-    if ! command -v jq &>/dev/null; then
-        echo "jq is required. Installing..."
-        yay -S --noconfirm jq
-    fi
+SERVICE_NAME=proxies-cfg-singbox
+TUN_INET=172.19.0.1
+
+restart_proxy() {
+    generate_singbox_config
+    sudo systemctl restart "$SERVICE_NAME"
 }
-
-generate_config() {
-    local secrets
-    secrets=$(ejson decrypt "$SECRETS_FILE")
-    sudo mkdir -p /etc/xray
-    python3 "$REPO_ROOT/shared/config_transform.py" linux "$CONFIG_FILE" "$secrets" \
-        | sudo tee /etc/xray/config.json >/dev/null
-}
-
-restart_xray() {
-    generate_config
-    echo "Restarting Xray proxy to apply changes..."
-    sudo systemctl restart xray
-}
-
-restart_proxy() { restart_xray; }

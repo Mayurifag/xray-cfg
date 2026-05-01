@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.xray-cfg.geodata</string>
+    <string>com.proxies-cfg.geodata</string>
     <key>UserName</key>
     <string>root</string>
     <key>ProgramArguments</key>

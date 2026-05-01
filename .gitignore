@@ -24,9 +24,6 @@ coverage/
 .cache/
 tmp/
 
-# windows/v2rayn runtime binaries — tracked scaffold files are excepted
-windows/v2rayn/*
-!windows/v2rayn/.gitkeep
-!windows/v2rayn/README.md
-
 macos/runtime/
+linux/runtime/
+windows/runtime/

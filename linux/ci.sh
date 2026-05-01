@@ -2,12 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-for f in macos/*.sh shared/*.sh linux/*.sh; do
+for f in linux/*.sh shared/*.sh; do
     bash -n "$f"
-done
-
-for p in macos/plists/*.plist; do
-    plutil -lint "$p" >/dev/null
 done
 
 python3 -c "import ast,sys
@@ -17,4 +13,4 @@ for p in sys.argv[1:]: ast.parse(open(p).read(), p)" \
 python3 -c "import json,sys
 for p in sys.argv[1:]: json.load(open(p))" config_base.json
 
-echo "macOS ci: shell + plist + python + json lint pass"
+echo "linux ci: shell + python + json lint pass"

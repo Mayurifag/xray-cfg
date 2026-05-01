@@ -1,162 +1,159 @@
-# xray-cfg
+# proxies-cfg
 
-xray TUN-based transparent proxy for Linux, macOS, and Windows.
+TUN-based transparent proxy on Linux, macOS, Windows. Single binary
+[`shtorm-7/sing-box-extended`](https://github.com/shtorm-7/sing-box-extended)
+(upstream sing-box lacks `xhttp` transport). Outbound configs are pulled from
+**subscription URLs** at every `setup`; nothing about the wire protocol is
+hard-coded.
 
 ## Code Style
 
-Only comment non-obvious behaviour — things that would surprise a reader who understands the language and tools.
+Only comment non-obvious behaviour — things that would surprise a reader who
+understands the language and tools.
 
 ## Authentication
 
-**Linux:** Sudo password stored in `secrets.ejson`. Retrieve it:
+**Linux:** Sudo password stored in `secrets.ejson`. Retrieve:
 ```sh
 ejson decrypt secrets.ejson | python3 -c "import sys,json; print(json.load(sys.stdin)['sudo_password'], end='')"
 ```
-Use `printf 'PASSWORD\n' | sudo -S -k COMMAND`. The `-k` flag forces fresh authentication.
-`pam_faillock` active — 3 failed attempts lock account. Reset: `faillock --user mayurifag --reset`
+Use `printf 'PASSWORD\n' | sudo -S -k COMMAND`. The `-k` flag forces fresh
+authentication. `pam_faillock` active — 3 failed attempts lock account. Reset:
+`faillock --user mayurifag --reset`.
 
-**Windows:** Scripts use `#Requires -RunAsAdministrator`. Run from elevated PowerShell. No password prompt.
+**Windows:** Scripts use `#Requires -RunAsAdministrator`.
 
 ## Project Layout
 
 ~~~
-config.json                 xray routing config (source of truth for all platforms)
-Makefile                    platform-detecting wrapper for setup/test/cycle/etc.
-secrets.ejson               encrypted secrets (proxy hosts/uuids, sudo passwords)
+config_base.json                  sing-box base template (TUN, DNS, routing) — outbound stubs filled in at build time
+Makefile                          platform-detecting wrapper for setup/test/cycle/etc.
+secrets.ejson                     encrypted: { sudo_password, macos_sudo_password, proxy_*.sub_url }
 
-shared/common.sh            cross-platform bash helpers (format_domain, ejson, git)
-shared/add_domain.sh        cross-platform add-domain core (sourced by linux/macos)
-shared/remove_domain.sh     cross-platform remove-domain core
-shared/config_transform.py  templates xray config + applies macOS transforms
-shared/singbox-tun.json     sing-box TUN base config (server_port 10808 must match SOCKS_PORT below)
-shared/geodata_urls.sh      geoip/geosite download URLs (bash callers)
-shared/geodata_urls.ps1     same URLs for PowerShell callers
-shared/test_urls.sh         direct/proxy_it/proxy_ru test URLs (bash)
-shared/test_urls.ps1        same URLs for PowerShell
+shared/sub_parse.py               fetch sub URL → base64-decode → parse first proxy URI → sing-box outbound dict
+shared/geo_convert.py             v2ray geosite.dat / geoip.dat → sing-box JSON rule-sets (per category)
+shared/build_config.py            assemble final sing-box config: base + 2 parsed outbounds
+shared/test_core.sh               cross-platform integration test (teardown→down→setup→distinct→QUIC→DNS)
+shared/update_geodata_core.sh     cross-platform geodata download + .dat→json conversion
+shared/common.sh                  cross-platform bash helpers (ensure_jq, format_domain, generate_singbox_config, git, ejson)
+shared/{add,remove}_domain.sh     cross-platform domain editor for config_base.json route.rules
+shared/constants.{sh,ps1}         versions, geodata URLs, test URLs — single source of truth
 
-linux/setup.sh              installs/restarts xray with TUN routing
-linux/teardown.sh           removes xray TUN setup
-linux/test.sh               integration test: teardown → verify down → setup → verify up
-linux/cycle.sh              alias for test.sh
-linux/{add,remove}_domain.sh  thin wrappers around shared/{add,remove}_domain.sh
-linux/update_geodata.sh     downloads geoip.dat/geosite.dat → /usr/share/v2ray (24h TTL)
-linux/common.sh             linux-specific helpers
-linux/tun-{up,down}.sh      systemd ExecStartPost / ExecStopPost hooks
+linux/setup.sh                    download sing-box-extended → geo + rule-sets → build config → systemd unit
+linux/teardown.sh                 stop/disable/remove unit + legacy xray cleanup
+linux/test.sh                     thin wrapper that exec's shared/test_core.sh
+linux/ci.sh                       shell + python + json lint
+linux/{add,remove}_domain.sh      thin wrappers around shared/{add,remove}_domain.sh
+linux/update_geodata.sh           thin wrapper that exec's shared/update_geodata_core.sh
+linux/common.sh                   linux helpers: paths, restart_proxy
 
-macos/setup.sh              installs LaunchDaemons for xray + sing-box TUN proxy
-macos/teardown.sh           reverses LaunchDaemon installation
-macos/test.sh               integration test (mirrors linux/test.sh; brew curl for QUIC)
-macos/cycle.sh              alias for test.sh
-macos/ci.sh                 lightweight CI: shell + plist lint
-macos/{add,remove}_domain.sh  thin wrappers around shared/{add,remove}_domain.sh
-macos/update_geodata.sh     downloads geodata to runtime/ (24h TTL)
-macos/common.sh             macOS-specific helpers
-macos/plists/*.plist        LaunchDaemon templates with __REPO_ROOT__ placeholder
-macos/runtime/              gitignored: extracted binaries, configs, logs, pid files
+macos/setup.sh                    download → geo + rule-sets → build config → install LaunchDaemon → wait for utun
+macos/teardown.sh                 bootout + remove plists (incl. legacy xray + logrotate)
+macos/test.sh                     thin wrapper that exec's shared/test_core.sh (HTTP/3 via brew curl)
+macos/ci.sh                       shell + plist + python + json lint
+macos/{add,remove}_domain.sh      thin wrappers
+macos/update_geodata.sh           thin wrapper that exec's shared/update_geodata_core.sh
+macos/common.sh                   macOS helpers: assert_root, ensure_jq, ensure_curl_http3, restart_proxy
+macos/plists/*.plist              LaunchDaemon templates with __REPO_ROOT__ placeholder
+macos/runtime/                    gitignored: binary, generated config, rule-sets, geodata, logs
 
-windows/setup.ps1           installs xray+sing-box TUN proxy via v2rayN binaries
-windows/teardown.ps1        reverses all setup side-effects
-windows/test.ps1            integration tests: -Mode all/proxy_ru/proxy_it/direct
-windows/cycle.ps1           full cycle: setup → test all → teardown → test direct
-windows/{add,remove}_domain.ps1  adds/removes domain routing rule
-windows/update_geodata.ps1  downloads geodata (skips if < 1 day old)
-windows/ci.ps1              lightweight CI: PowerShell syntax + JSON lint
-windows/common.ps1          shared helpers (Assert-Admin, Write-Phase, Format-Domain, Test-Outbound, Remove-SockoptMark, …)
-windows/v2rayn/             runtime dir (gitignored): binaries, zip cache, geodata, pid files
-windows/v2rayn/bin/xray/config.json  deployed Windows xray config (generated by setup.ps1)
+windows/setup.ps1                 download → geo + rule-sets → build config (sets interface_name) → register Scheduled Task → wait TUN
+windows/teardown.ps1              stop processes, remove tasks (incl. legacy xray-proxy/xray-geodata/xray-logrotate)
+windows/test.ps1                  integration tests: -Mode all/proxy_ru/proxy_it/direct
+windows/cycle.ps1                 setup → test all → teardown → test direct
+windows/{add,remove}_domain.ps1   domain editor for config_base.json
+windows/update_geodata.ps1        daily geodata refresh + JSON conversion
+windows/ci.ps1                    PowerShell parser + JSON lint
+windows/common.ps1                helpers: Assert-Admin, Build-SingboxConfig, Restart-Proxy, Format-Domain
+windows/runtime/                  gitignored: binary, generated config, rule-sets, geodata, logs
 ~~~
-
-## Cross-platform Constants
-
-| Constant         | Value           | Where defined                                   | Notes                                           |
-| ---------------- | --------------- | ----------------------------------------------- | ----------------------------------------------- |
-| SOCKS_PORT       | `10808`         | hardcoded in `shared/config_transform.py`, `windows/setup.ps1`, `shared/singbox-tun.json` | Must match across all three; sing-box → xray contract |
-| Linux TUN IP     | `172.19.0.1/30` | `linux/tun-up.sh`                               | xray-managed TUN (`xray0`)                       |
-| macOS TUN IP     | `172.18.0.1/30` | `shared/singbox-tun.json`                       | sing-box-managed TUN (`utunN`); auto-picked      |
-| Windows TUN IP   | auto            | sing-box assigns; adapter named `singbox_tun`   | No explicit IP                                   |
-| geodata URLs     | runetfreedom/*  | `shared/geodata_urls.{sh,ps1}`                  | Single source of truth                           |
-| test URLs        | ident.me, eth0.me, checkip.amazonaws.com | `shared/test_urls.{sh,ps1}` | Single source of truth                           |
 
 ## Outbounds
 
-| Outbound   | Protocol | Purpose             | Test domain           |
-| ---------- | -------- | ------------------- | --------------------- |
-| `direct`   | freedom  | Default (unmatched) | checkip.amazonaws.com |
-| `proxy_ru` | VLESS    | Russian domains     | ident.me              |
-| `proxy_it` | VLESS    | Blocked sites       | eth0.me               |
+| Outbound   | Protocol  | Purpose             | Test domain           |
+| ---------- | --------- | ------------------- | --------------------- |
+| `direct`   | direct    | Default (unmatched) | checkip.amazonaws.com |
+| `proxy_ru` | hysteria2 | Russian-only sites  | ident.me              |
+| `proxy_it` | vless+xhttp+reality | Blocked sites | eth0.me            |
 
-## Linux: How It Works
+Outbound *types* and credentials are extracted from each `sub_url` — the table
+above reflects what the current servers offer; rotate the subscription and the
+parsed outbound shape changes accordingly.
 
-xray creates TUN interface `xray0`, routes all system traffic through it.
+## Cross-platform constants
 
-`ExecStartPost` configures systemd-resolved to route DNS through the TUN:
+| Constant     | Value             | Where defined                            | Notes                                         |
+| ------------ | ----------------- | ---------------------------------------- | --------------------------------------------- |
+| TUN address  | `172.19.0.1/30`   | `config_base.json` `inbounds[0].address` | Same on all OSes; sing-box auto-assigns       |
+| TUN MTU      | `1500`            | `config_base.json`                       | Default; lower if proxy server has smaller MTU|
+| Stack        | `mixed`           | `config_base.json` `inbounds[0].stack`   | gvisor userspace TCP for reliable sniff       |
+| geodata URLs | runetfreedom/*    | `shared/geodata_urls.{sh,ps1}`           | Single source of truth                        |
+| test URLs    | ident.me, eth0.me, checkip.amazonaws.com | `shared/test_urls.{sh,ps1}` | Single source of truth |
 
-```sh
-resolvectl dns xray0 1.1.1.1
-resolvectl default-route xray0 yes
-resolvectl domain xray0 "~."
-```
+## Subscription parsing
 
-**Why `1.1.1.1` not `172.19.0.1`:** `172.19.0.1` is the TUN's own address — kernel delivers packets to local addresses directly, bypassing the TUN entirely. DNS must reach the TUN as external traffic via the port-53 routing rule.
+`shared/sub_parse.py` understands `hysteria2://` and `vless://`. URI fields with
+no sing-box-extended schema match are dropped silently:
 
-**Why `"~."`:** When multiple interfaces have `Default Route: yes`, systemd-resolved picks the lowest interface index. Physical NIC beats xray0. `~.` forces all DNS to xray0 regardless of index ordering.
+| Dropped field   | Why                                                                      |
+| --------------- | ------------------------------------------------------------------------ |
+| `fp` (hy2)      | sing-box errors `unsupported usage for uTLS` (uTLS can't wrap QUIC)      |
+| `fm` (hy2)      | Duplicate of `obfs` UDP block                                            |
+| `spx` (vless)   | sing-box-extended Reality has no `spider_x` field                        |
 
-`ExecStopPost` runs `resolvectl revert xray0 2>/dev/null || true` before deleting the interface — reverting a deleted interface exits non-zero.
+`fp` for VLESS is kept (uTLS over TCP works); ECH config (when present in URI)
+is wrapped as PEM and passed to `tls.ech.config`. **xhttp transport requires
+`alpn: ["h2"]`** (HTTP/2 mandatory).
 
-## Linux: Key Gotcha — ExecStartPost Race Condition
+For VLESS+xhttp+REALITY URIs, the `parser` outbound built into sing-box-extended
+is **incomplete** (drops `type=xhttp` silently). `sub_parse.py` builds the full
+outbound dict ourselves to compensate.
 
-xray creates `xray0` asynchronously. `tun-up.sh` polls:
+## Geodata flow
 
-```sh
-until ip link show xray0 >/dev/null 2>&1; do sleep 0.1; done
-```
+`update_geodata.sh|.ps1` downloads runetfreedom `geoip.dat` + `geosite.dat`
+(v2ray protobuf). `geo_convert.py` parses them with a minimal protobuf reader
+and emits one `*.json` per category referenced in `config_base.json`. sing-box
+loads each as a `local`/`source`-format rule-set.
 
-**Do not** use shell variables (`$i`, `$((i+1))`) in the heredoc that writes `override.conf` — bash expands them during heredoc processing.
+Categories are extracted automatically from the rule-set paths in
+`config_base.json` (no separate list to maintain).
 
-## Windows: Architecture (Two-Core TUN Mode)
+## Known gotchas
 
-```
-System traffic → WinTun adapter (sing-box TUN frontend)
-              → SOCKS 127.0.0.1:10808
-              → xray (routing + outbounds)
-              → direct / proxy_ru / proxy_it
-```
+**Subscription rate limit.** Both 3xui panels return 403 after rapid repeated
+fetches. Production usage is one fetch per `setup` so it's a non-issue; in
+development, wait ~30s between calls.
 
-sing-box owns the WinTun NIC and intercepts all traffic. xray receives via SOCKS and applies domain routing.
+**Sub fetch User-Agent.** `urllib.request` default `Python-urllib/X.Y` is
+blocked by 3xui. `sub_parse.py` sends `User-Agent: sing-box/1.13` which works.
 
-`windows/setup.ps1` generates the Windows xray config from `config.json` via four transforms:
-1. Replace inbounds with single SOCKS inbound at 127.0.0.1:10808 (`destOverride: ["http","tls","quic"]`)
-2. Strip `mark` from all outbound `sockopt` (Linux-only `SO_MARK`; loop prevention is sing-box's job on Windows)
-3. Drop the port-53 routing rule (has `inboundTag`; Windows uses SOCKS, not raw TUN)
-4. Add `log.error` file path (Windows logs to file; Linux uses stdout/journald)
+**`shtorm-7/sing-box-extended` requires `x_padding_bytes` in xhttp.** Empty or
+missing → config rejected at startup with `"x_padding_bytes cannot be
+disabled"`. Set to `"100-1000"` (xray's xhttp default).
 
-## Windows: Running Tests
+**xhttp client mode = `auto`.** Lets server pick. `packet-up`/`stream-up`/
+`stream-one` may fail handshake depending on server config.
 
-```powershell
-.\windows\cycle.ps1           # full: setup → test all → teardown → test direct
-.\windows\setup.ps1           # start proxy
-.\windows\test.ps1 -Mode all  # test all three outbounds
-.\windows\teardown.ps1        # stop and clean up
-```
+**Chromium Secure DNS.** Chrome/Edge use built-in DoH, bypassing system DNS,
+so routing breaks for proxy_* domains. Disable in browser, launch with
+`--disable-features=DnsOverHttps`, or set managed policy
+`/etc/chromium/policies/managed/disable-doh.json` →
+`{"DnsOverHttpsMode":"off"}` (Linux).
 
-## Known Gotchas
+**`.NET connection pool bypasses TUN (Windows).** `ServicePointManager` reuses
+TCP connections across PowerShell requests. After proxy restart, pooled
+connections bypass the new TUN routing. Fix: `CloseConnectionGroup('')`
+before post-restart checks (already in `windows/test.ps1` direct mode).
 
-**Chromium Secure DNS (Linux):** Chromium-based browsers use built-in DoH, bypassing systemd-resolved. Routing breaks for `proxy_ru`/`proxy_it` domains.
-Fix options (ordered by permanence):
-1. Browser settings → disable "Use secure DNS"
-2. Launch flag: `--disable-features=DnsOverHttps`
-3. Managed policy (survives updates): `/etc/chromium/policies/managed/disable-doh.json` → `{"DnsOverHttpsMode":"off"}`
+**`$pid` in PowerShell.** Reserved read-only variable. Use `$procId`.
 
-**QUIC routing (Windows) — FIXED:** `destOverride` must include `"quic"`. Without it, HTTP/3 UDP packets can't be domain-matched → fall to `direct`. Already in `setup.ps1`.
+**`schtasks /query` with `$ErrorActionPreference = 'Stop'`.** Throws on
+nonzero exit. Use `Get-ScheduledTask -ErrorAction SilentlyContinue` instead.
 
-**Partial page load on first visit (Windows) — FIXED:** `stack: system` in sing-box races under parallel TCP load — sniff fires too late. Fixed with `stack: "mixed"` in `windows/singbox-tun.json` (gvisor userspace TCP sniffs before connection proceeds).
+## Migration from xray-based stack
 
-**`sniff_override_destination: true` in sing-box — DO NOT enable:** Breaks VLESS outbounds with "connection was closed". Keep `false`; let xray do all protocol sniffing.
-
-**`.NET connection pool bypasses TUN (Windows) — FIXED:** `.NET ServicePointManager` reuses TCP connections across PowerShell requests. After proxy restart, pooled connections bypass the new TUN routing. Fixed via `CloseConnectionGroup('')` before post-restart checks in `test.ps1`.
-
-**`$pid` in PowerShell:** Reserved read-only variable. Use `$procId` instead.
-
-**`schtasks /query` with `$ErrorActionPreference = 'Stop'`:** Throws on nonzero exit. Use `Get-ScheduledTask -ErrorAction SilentlyContinue` instead.
-
-**2s sleep between xray and sing-box start (Windows):** Intentional — ensures xray SOCKS port is ready before sing-box forwards traffic.
+Teardown scripts on every OS bootout/remove the legacy xray daemons + the
+extra logrotate task before the new sing-box-extended task is registered.
+Running `make teardown` on the old install once is enough; subsequent
+`make setup` works directly.

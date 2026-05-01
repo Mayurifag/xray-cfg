@@ -1,3 +1,6 @@
 #Requires -Version 5.1
+. "$PSScriptRoot\common.ps1"
 
-Get-Content "$PSScriptRoot\v2rayn\bin\xray\xray-error.log" -Tail 50 -Wait
+$log = Join-Path $RuntimeDir 'singbox.log'
+if (-not (Test-Path $log)) { Write-Host "No log yet at $log"; exit 0 }
+Get-Content $log -Tail 50 -Wait

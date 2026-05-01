@@ -3,15 +3,15 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.xray-cfg.singbox</string>
+    <string>com.proxies-cfg.singbox</string>
     <key>UserName</key>
     <string>root</string>
     <key>ProgramArguments</key>
     <array>
-        <string>__REPO_ROOT__/macos/runtime/bin/sing_box/sing-box</string>
+        <string>__REPO_ROOT__/macos/runtime/bin/sing-box</string>
         <string>run</string>
         <string>-c</string>
-        <string>__REPO_ROOT__/macos/runtime/singbox-tun.json</string>
+        <string>__REPO_ROOT__/macos/runtime/config.json</string>
     </array>
     <key>WorkingDirectory</key>
     <string>__REPO_ROOT__/macos/runtime</string>

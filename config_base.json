@@ -1,0 +1,79 @@
+{
+  "log": { "level": "warn", "timestamp": true },
+  "dns": {
+    "servers": [
+      { "type": "https", "tag": "doh-cf", "server": "1.1.1.1" },
+      { "type": "https", "tag": "doh-google", "server": "8.8.8.8" }
+    ],
+    "strategy": "ipv4_only"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": ["172.19.0.1/30"],
+      "mtu": 1500,
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "mixed"
+    }
+  ],
+  "outbounds": [
+    { "type": "direct", "tag": "direct" }
+  ],
+  "route": {
+    "rule_set": [
+      { "type": "local", "tag": "geosite-2ch",                    "format": "source", "path": "${RULE_SET_DIR}/geosite-2ch.json" },
+      { "type": "local", "tag": "geosite-ru-available-only-inside","format": "source", "path": "${RULE_SET_DIR}/geosite-ru-available-only-inside.json" },
+      { "type": "local", "tag": "geosite-bestbuy",                "format": "source", "path": "${RULE_SET_DIR}/geosite-bestbuy.json" },
+      { "type": "local", "tag": "geosite-category-porn",          "format": "source", "path": "${RULE_SET_DIR}/geosite-category-porn.json" },
+      { "type": "local", "tag": "geosite-discord",                "format": "source", "path": "${RULE_SET_DIR}/geosite-discord.json" },
+      { "type": "local", "tag": "geosite-habr",                   "format": "source", "path": "${RULE_SET_DIR}/geosite-habr.json" },
+      { "type": "local", "tag": "geosite-linkedin",               "format": "source", "path": "${RULE_SET_DIR}/geosite-linkedin.json" },
+      { "type": "local", "tag": "geosite-meta",                   "format": "source", "path": "${RULE_SET_DIR}/geosite-meta.json" },
+      { "type": "local", "tag": "geosite-netflix",                "format": "source", "path": "${RULE_SET_DIR}/geosite-netflix.json" },
+      { "type": "local", "tag": "geosite-openai",                 "format": "source", "path": "${RULE_SET_DIR}/geosite-openai.json" },
+      { "type": "local", "tag": "geosite-paypal",                 "format": "source", "path": "${RULE_SET_DIR}/geosite-paypal.json" },
+      { "type": "local", "tag": "geosite-pinterest",              "format": "source", "path": "${RULE_SET_DIR}/geosite-pinterest.json" },
+      { "type": "local", "tag": "geosite-rutracker",              "format": "source", "path": "${RULE_SET_DIR}/geosite-rutracker.json" },
+      { "type": "local", "tag": "geosite-spotify",                "format": "source", "path": "${RULE_SET_DIR}/geosite-spotify.json" },
+      { "type": "local", "tag": "geosite-telegram",               "format": "source", "path": "${RULE_SET_DIR}/geosite-telegram.json" },
+      { "type": "local", "tag": "geosite-tiktok",                 "format": "source", "path": "${RULE_SET_DIR}/geosite-tiktok.json" },
+      { "type": "local", "tag": "geosite-twitter",                "format": "source", "path": "${RULE_SET_DIR}/geosite-twitter.json" },
+      { "type": "local", "tag": "geoip-facebook",                 "format": "source", "path": "${RULE_SET_DIR}/geoip-facebook.json" },
+      { "type": "local", "tag": "geoip-netflix",                  "format": "source", "path": "${RULE_SET_DIR}/geoip-netflix.json" },
+      { "type": "local", "tag": "geoip-telegram",                 "format": "source", "path": "${RULE_SET_DIR}/geoip-telegram.json" },
+      { "type": "local", "tag": "geoip-twitter",                  "format": "source", "path": "${RULE_SET_DIR}/geoip-twitter.json" }
+    ],
+    "rules": [
+      { "action": "sniff" },
+      { "protocol": "dns", "action": "hijack-dns" },
+      {
+        "domain": ["donationalerts.com", "ident.me"],
+        "outbound": "proxy_ru"
+      },
+      {
+        "rule_set": ["geosite-2ch", "geosite-ru-available-only-inside"],
+        "outbound": "proxy_ru"
+      },
+      {
+        "domain": ["aeza.net", "eth0.me", "meduza.io", "ntc.party", "slickdeals.net"],
+        "outbound": "proxy_it"
+      },
+      {
+        "rule_set": [
+          "geosite-bestbuy", "geosite-category-porn", "geosite-discord",
+          "geosite-habr", "geosite-linkedin", "geosite-meta", "geosite-netflix",
+          "geosite-openai", "geosite-paypal", "geosite-pinterest",
+          "geosite-rutracker", "geosite-spotify", "geosite-telegram",
+          "geosite-tiktok", "geosite-twitter",
+          "geoip-facebook", "geoip-netflix", "geoip-telegram", "geoip-twitter"
+        ],
+        "outbound": "proxy_it"
+      }
+    ],
+    "final": "direct",
+    "auto_detect_interface": true,
+    "default_domain_resolver": "doh-cf"
+  }
+}

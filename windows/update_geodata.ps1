@@ -1,59 +1,47 @@
 #Requires -Version 5.1
+. "$PSScriptRoot\common.ps1"
+. (Join-Path $PSScriptRoot '..\shared\constants.ps1')
 <#
 .SYNOPSIS
-    Download fresh geoip.dat and geosite.dat.
-.DESCRIPTION
-    Saves files to $TargetDir (defaults to $PSScriptRoot\v2rayn\), creating the
-    directory if needed. Pass -TargetDir to place geodata next to xray.exe instead.
-    Prints downloaded paths and sizes to stdout. Progress and errors go to stderr.
-    Exits non-zero on any download failure or if a file ends up empty.
+    Download geoip.dat + geosite.dat (24h TTL) and convert to sing-box JSON
+    rule-sets via shared/geo_convert.py.
 #>
-param(
-    [string]$TargetDir
-)
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if (-not $TargetDir) { $TargetDir = Join-Path $PSScriptRoot 'v2rayn' }
-. (Join-Path $PSScriptRoot '..\shared\geodata_urls.ps1')
-$GeoipPath  = Join-Path $TargetDir 'geoip.dat'
-$GeositePath = Join-Path $TargetDir 'geosite.dat'
+if (-not (Test-Path $GeodataDir)) { New-Item -ItemType Directory -Path $GeodataDir | Out-Null }
+if (-not (Test-Path $RuleSetDir)) { New-Item -ItemType Directory -Path $RuleSetDir | Out-Null }
 
-if (-not (Test-Path $TargetDir)) {
-    New-Item -ItemType Directory -Path $TargetDir | Out-Null
+$GeoIpPath   = Join-Path $GeodataDir 'geoip.dat'
+$GeoSitePath = Join-Path $GeodataDir 'geosite.dat'
+
+function Test-NeedsUpdate {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return $true }
+    $age = (Get-Date) - (Get-Item $Path).LastWriteTime
+    return $age.TotalSeconds -gt 86400
 }
 
-$MaxAgeDays  = 1
-$now         = Get-Date
-$geoipFresh  = (Test-Path $GeoipPath) -and ($now - (Get-Item $GeoipPath).LastWriteTime).TotalDays -lt $MaxAgeDays
-$geositeFresh = (Test-Path $GeositePath) -and ($now - (Get-Item $GeositePath).LastWriteTime).TotalDays -lt $MaxAgeDays
-
-if ($geoipFresh -and $geositeFresh) {
-    Write-Host "Geodata fresh (< $MaxAgeDays days), skipping download." -ForegroundColor DarkGray
-} else {
-    if (-not $geoipFresh) {
-        Write-Host 'Downloading geoip.dat...' -ForegroundColor DarkGray
-        Invoke-WebRequest -Uri $GeoipUrl -OutFile $GeoipPath -UseBasicParsing
-    }
-    if (-not $geositeFresh) {
-        Write-Host 'Downloading geosite.dat...' -ForegroundColor DarkGray
-        Invoke-WebRequest -Uri $GeositeUrl -OutFile $GeositePath -UseBasicParsing
-    }
+if (Test-NeedsUpdate $GeoIpPath) {
+    Write-Phase 'geodata' "downloading geoip.dat from $GeoipUrl"
+    Invoke-WebRequest -Uri $GeoipUrl -OutFile "$GeoIpPath.tmp" -UseBasicParsing
+    Move-Item "$GeoIpPath.tmp" $GeoIpPath -Force
 }
 
-$GeoipInfo   = Get-Item $GeoipPath
-$GeositeInfo = Get-Item $GeositePath
-
-if ($GeoipInfo.Length -eq 0) {
-    Write-Error "Error: $GeoipPath is empty or missing"
-    exit 1
+if (Test-NeedsUpdate $GeoSitePath) {
+    Write-Phase 'geodata' "downloading geosite.dat from $GeositeUrl"
+    Invoke-WebRequest -Uri $GeositeUrl -OutFile "$GeoSitePath.tmp" -UseBasicParsing
+    Move-Item "$GeoSitePath.tmp" $GeoSitePath -Force
 }
 
-if ($GeositeInfo.Length -eq 0) {
-    Write-Error "Error: $GeositePath is empty or missing"
-    exit 1
-}
+if ((Get-Item $GeoIpPath).Length -eq 0)   { Write-Error 'geoip.dat empty';   exit 1 }
+if ((Get-Item $GeoSitePath).Length -eq 0) { Write-Error 'geosite.dat empty'; exit 1 }
 
-Write-Output "$GeoipPath ($($GeoipInfo.Length) bytes)"
-Write-Output "$GeositePath ($($GeositeInfo.Length) bytes)"
+Write-Phase 'geodata' "converting .dat -> sing-box rule-sets in $RuleSetDir"
+$pyArgs = @(
+    (Join-Path $RepoRoot 'shared\geo_convert.py'),
+    $GeoSitePath, $GeoIpPath, $RuleSetDir,
+    '--from-config', $ConfigBase
+)
+Invoke-Python -Arguments $pyArgs
+if ($LASTEXITCODE -ne 0) { Write-Error 'geo_convert.py failed'; exit 1 }

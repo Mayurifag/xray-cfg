@@ -1,41 +1,30 @@
 #!/bin/bash
-# macOS-specific helpers. Sources shared/common.sh first.
+# macOS-specific helpers. Sourced after caller cd's to repo root.
 
-SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+source shared/common.sh
 
-source "$REPO_ROOT/shared/common.sh"
-
-RUNTIME_DIR="$SCRIPT_DIR/runtime"
-XRAY_DIR="$RUNTIME_DIR/bin/xray"
-SINGBOX_DIR="$RUNTIME_DIR/bin/sing_box"
-XRAY_BIN="$XRAY_DIR/xray"
+RUNTIME_DIR=macos/runtime
+SINGBOX_DIR="$RUNTIME_DIR/bin"
 SINGBOX_BIN="$SINGBOX_DIR/sing-box"
-XRAY_CONFIG="$XRAY_DIR/config.json"
-SINGBOX_CONFIG="$RUNTIME_DIR/singbox-tun.json"
-XRAY_ERROR_LOG="$RUNTIME_DIR/xray-error.log"
+SINGBOX_CONFIG="$RUNTIME_DIR/config.json"
+RULE_SET_DIR="$RUNTIME_DIR/rule-sets"
+GEODATA_DIR="$RUNTIME_DIR/geodata"
 SINGBOX_LOG="$RUNTIME_DIR/singbox.log"
-PID_FILE="$RUNTIME_DIR/proxy.pid"
 
 LAUNCH_DAEMON_DIR=/Library/LaunchDaemons
-LABELS=(
-    com.xray-cfg.xray
-    com.xray-cfg.singbox
-    com.xray-cfg.geodata
-    com.xray-cfg.logrotate
-)
+LABELS=(com.proxies-cfg.singbox com.proxies-cfg.geodata)
+# Cleaned up by teardown if present.
+LEGACY_LABELS=(com.xray-cfg.singbox com.xray-cfg.geodata com.xray-cfg.xray com.xray-cfg.logrotate)
 
-write_phase() {
-    echo "[$(date '+%H:%M:%S')] [$1] $2" >&2
-}
+# IPv4 inside the TUN's /30. Must stay in sync with config_base.json.
+TUN_INET=172.19.0.1
 
 assert_root() {
     if [[ $EUID -ne 0 ]]; then
         echo "[macos] re-exec under sudo (using macos_sudo_password from secrets.ejson)" >&2
-        local pw
+        local pw script
         pw=$(ejson_decrypt_secret macos_sudo_password)
-        local script
-        script="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+        script="$(pwd)/$0"
         printf '%s\n' "$pw" | sudo -S -k -p '' bash "$script" "$@"
         exit $?
     fi
@@ -53,59 +42,30 @@ ensure_jq() {
     fi
 }
 
-# Locate a curl binary that supports HTTP/3 (system curl 8.x on macOS is
-# linked against SecureTransport/LibreSSL and lacks --http3). Brew's curl
-# is built with nghttp3+ngtcp2 and supports it. Installs brew curl on
-# demand. Echoes the path of the http3-capable curl on success.
 ensure_curl_http3() {
-    local candidates=(
-        /opt/homebrew/opt/curl/bin/curl
-        /usr/local/opt/curl/bin/curl
-        curl
-    )
+    local candidates=(/opt/homebrew/opt/curl/bin/curl /usr/local/opt/curl/bin/curl curl)
     for c in "${candidates[@]}"; do
         if command -v "$c" >/dev/null 2>&1 && "$c" --http3 -V >/dev/null 2>&1; then
-            echo "$c"
-            return 0
+            echo "$c"; return 0
         fi
     done
     if command -v brew >/dev/null 2>&1; then
-        echo "[macos] installing brew curl (HTTP/3) ..." >&2
         brew install curl >&2
         local brewed=/opt/homebrew/opt/curl/bin/curl
         [[ -x "$brewed" ]] || brewed=/usr/local/opt/curl/bin/curl
-        if [[ -x "$brewed" ]] && "$brewed" --http3 -V >/dev/null 2>&1; then
-            echo "$brewed"
-            return 0
-        fi
+        [[ -x "$brewed" ]] && echo "$brewed" && return 0
     fi
-    echo "Error: no curl with HTTP/3 support found and brew unavailable." >&2
+    echo "Error: no curl with HTTP/3 support found." >&2
     return 1
 }
 
-generate_xray_config() {
-    local secrets
-    secrets=$(ejson decrypt "$SECRETS_FILE")
-    mkdir -p "$XRAY_DIR"
-    XRAY_ERROR_LOG_PATH="$XRAY_ERROR_LOG" \
-        python3 "$REPO_ROOT/shared/config_transform.py" macos "$CONFIG_FILE" "$secrets" \
-        > "$XRAY_CONFIG"
-}
-
 restart_proxy() {
-    # Runtime config dir is root-owned (LaunchDaemon installs as root),
-    # and `launchctl kickstart system/...` needs root. Elevate when called
-    # from non-root callers like add_domain.sh / remove_domain.sh.
     if [[ $EUID -ne 0 ]]; then
-        echo "[macos] restart_proxy: elevating to root via secrets.ejson" >&2
         local pw
         pw=$(ejson_decrypt_secret macos_sudo_password)
-        printf '%s\n' "$pw" | sudo -S -k -p '' \
-            env REPO_ROOT="$REPO_ROOT" \
-            bash -c 'source "$REPO_ROOT/macos/common.sh" && restart_proxy'
+        printf '%s\n' "$pw" | sudo -S -k -p '' bash -c "cd $(pwd) && source macos/common.sh && restart_proxy"
         return $?
     fi
-    generate_xray_config
-    echo "[macos] kickstart xray daemon..." >&2
-    launchctl kickstart -k system/com.xray-cfg.xray
+    generate_singbox_config
+    launchctl kickstart -k system/com.proxies-cfg.singbox
 }

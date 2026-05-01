@@ -19,7 +19,6 @@ else ifeq ($(shell uname),Darwin)
   cmd_setup        := bash macos/setup.sh
   cmd_teardown     := bash macos/teardown.sh
   cmd_test         := bash macos/test.sh
-  cmd_cycle        := bash macos/cycle.sh
   cmd_status       := bash macos/status.sh
   cmd_logs         := bash macos/logs.sh
   cmd_flush_dns    := bash macos/flush_dns.sh
@@ -31,22 +30,18 @@ else
   cmd_setup        := bash linux/setup.sh
   cmd_teardown     := bash linux/teardown.sh
   cmd_test         := bash linux/test.sh
-  cmd_cycle        := bash linux/cycle.sh
-  cmd_status       := sudo systemctl status xray --no-pager
-  cmd_logs         := sudo journalctl -u xray -f
-  cmd_flush_dns    := sudo resolvectl flush-caches
+  cmd_status       := bash linux/status.sh
+  cmd_logs         := bash linux/logs.sh
+  cmd_flush_dns    := bash linux/flush_dns.sh
   cmd_geodata      := bash linux/update_geodata.sh
   cmd_add_domain   := bash linux/add_domain.sh $(domain) $(proxy)
   cmd_rm_domain    := bash linux/remove_domain.sh $(domain)
+  cmd_ci           := bash linux/ci.sh
 endif
 
 # ── targets ───────────────────────────────────────────────────────────────────
-ifdef cmd_ci
 ci:
 	$(cmd_ci)
-else
-ci: cycle
-endif
 
 setup:
 	$(cmd_setup)
@@ -59,8 +54,14 @@ restart: teardown setup
 test:
 	$(cmd_test)
 
+# Linux/macOS test.sh already does teardown→verify→setup→verify; cycle == test.
+# Windows is mode-driven; cycle.ps1 wraps setup→test→teardown→test direct.
+ifeq ($(OS),Windows_NT)
 cycle:
 	$(cmd_cycle)
+else
+cycle: test
+endif
 
 status:
 	$(cmd_status)
