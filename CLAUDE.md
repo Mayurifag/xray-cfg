@@ -26,47 +26,73 @@ authentication. `pam_faillock` active — 3 failed attempts lock account. Reset:
 ## Project Layout
 
 ~~~
-config_base.json                  sing-box base template (TUN, DNS, routing) — outbound stubs filled in at build time
-Makefile                          platform-detecting wrapper for setup/test/cycle/etc.
+proxies.conf                      source-of-truth routing config: per-tag [domains/geosites/geoips] sections
+Makefile                          platform-detecting wrapper for setup/test/cycle/generate-config/etc.
 secrets.ejson                     encrypted: { sudo_password, macos_sudo_password, proxy_*.sub_url }
 
 shared/sub_parse.py               fetch sub URL → base64-decode → parse first proxy URI → sing-box outbound dict
 shared/geo_convert.py             v2ray geosite.dat / geoip.dat → sing-box JSON rule-sets (per category)
-shared/build_config.py            assemble final sing-box config: base + 2 parsed outbounds
+shared/proxies_conf.py            parser/editor for proxies.conf (load/dump + add-domain/remove-domain CLI)
+shared/build_config.py            assemble final sing-box config: inlined base + parsed outbounds + rules expanded from proxies.conf
+shared/generate_config.sh         print sing-box config to stdout (used by setup via redirect, also by `make generate-config`)
 shared/test_core.sh               cross-platform integration test (teardown→down→setup→distinct→QUIC→DNS)
 shared/update_geodata_core.sh     cross-platform geodata download + .dat→json conversion
-shared/common.sh                  cross-platform bash helpers (ensure_jq, format_domain, generate_singbox_config, git, ejson)
-shared/{add,remove}_domain.sh     cross-platform domain editor for config_base.json route.rules
+shared/common.sh                  cross-platform bash helpers (format_domain, get_proxy_tags, generate_singbox_config, git, ejson)
+shared/{add,remove}_domain.sh     cross-platform domain editor (delegates write to proxies_conf.py)
 shared/constants.{sh,ps1}         versions, geodata URLs, test URLs — single source of truth
 
 linux/setup.sh                    download sing-box-extended → geo + rule-sets → build config → systemd unit
 linux/teardown.sh                 stop/disable/remove unit + legacy xray cleanup
 linux/test.sh                     thin wrapper that exec's shared/test_core.sh
-linux/ci.sh                       shell + python + json lint
+linux/ci.sh                       shell + python + proxies.conf parse
 linux/{add,remove}_domain.sh      thin wrappers around shared/{add,remove}_domain.sh
+linux/generate_config.sh          thin wrapper around shared/generate_config.sh
 linux/update_geodata.sh           thin wrapper that exec's shared/update_geodata_core.sh
 linux/common.sh                   linux helpers: paths, restart_proxy
 
 macos/setup.sh                    download → geo + rule-sets → build config → install LaunchDaemon → wait for utun
 macos/teardown.sh                 bootout + remove plists (incl. legacy xray + logrotate)
 macos/test.sh                     thin wrapper that exec's shared/test_core.sh (HTTP/3 via brew curl)
-macos/ci.sh                       shell + plist + python + json lint
+macos/ci.sh                       shell + plist + python + proxies.conf parse
 macos/{add,remove}_domain.sh      thin wrappers
+macos/generate_config.sh          thin wrapper around shared/generate_config.sh
 macos/update_geodata.sh           thin wrapper that exec's shared/update_geodata_core.sh
-macos/common.sh                   macOS helpers: assert_root, ensure_jq, ensure_curl_http3, restart_proxy
+macos/common.sh                   macOS helpers: assert_root, ensure_curl_http3, restart_proxy
 macos/plists/*.plist              LaunchDaemon templates with __REPO_ROOT__ placeholder
 macos/runtime/                    gitignored: binary, generated config, rule-sets, geodata, logs
 
-windows/setup.ps1                 download → geo + rule-sets → build config (sets interface_name) → register Scheduled Task → wait TUN
+windows/setup.ps1                 download → geo + rule-sets → build config → register Scheduled Task → wait TUN
 windows/teardown.ps1              stop processes, remove tasks (incl. legacy xray-proxy/xray-geodata/xray-logrotate)
 windows/test.ps1                  integration tests: -Mode all/proxy_ru/proxy_it/direct
 windows/cycle.ps1                 setup → test all → teardown → test direct
-windows/{add,remove}_domain.ps1   domain editor for config_base.json
+windows/{add,remove}_domain.ps1   domain editor (delegates write to shared/proxies_conf.py)
+windows/generate_config.ps1       print sing-box config to stdout
 windows/update_geodata.ps1        daily geodata refresh + JSON conversion
-windows/ci.ps1                    PowerShell parser + JSON lint
+windows/ci.ps1                    PowerShell parser + JSON + proxies.conf lint
 windows/common.ps1                helpers: Assert-Admin, Build-SingboxConfig, Restart-Proxy, Format-Domain
 windows/runtime/                  gitignored: binary, generated config, rule-sets, geodata, logs
 ~~~
+
+## proxies.conf format
+
+Source-of-truth file describing routing. INI-ish, hand-editable. One bare value
+per line, no leading whitespace, alphabetical (writer enforces sort + dedup).
+`#` comments + blank lines allowed in input but not preserved on rewrite.
+
+~~~
+[<tag>.domains]      # exact-match domains routed via this outbound
+example.com
+
+[<tag>.geosites]     # geosite category names (without "geosite-" prefix)
+telegram
+
+[<tag>.geoips]       # geoip code names (without "geoip-" prefix)
+twitter
+~~~
+
+`build_config.py` expands each section into `route.rule_set` entries +
+`route.rules` (one `domain` rule + one `rule_set` rule per tag). Static base
+config (log/dns/inbounds/sniff+hijack/final) is inlined in `build_config.py`.
 
 ## Outbounds
 
@@ -84,9 +110,9 @@ parsed outbound shape changes accordingly.
 
 | Constant     | Value             | Where defined                            | Notes                                         |
 | ------------ | ----------------- | ---------------------------------------- | --------------------------------------------- |
-| TUN address  | `172.19.0.1/30`   | `config_base.json` `inbounds[0].address` | Same on all OSes; sing-box auto-assigns       |
-| TUN MTU      | `1500`            | `config_base.json`                       | Default; lower if proxy server has smaller MTU|
-| Stack        | `mixed`           | `config_base.json` `inbounds[0].stack`   | gvisor userspace TCP for reliable sniff       |
+| TUN address  | `172.19.0.1/30`   | `shared/build_config.py` `_base_config`  | Same on all OSes; sing-box auto-assigns       |
+| TUN MTU      | `1500`            | `shared/build_config.py` `_base_config`  | Default; lower if proxy server has smaller MTU|
+| Stack        | `mixed`           | `shared/build_config.py` `_base_config`  | gvisor userspace TCP for reliable sniff       |
 | geodata URLs | runetfreedom/*    | `shared/geodata_urls.{sh,ps1}`           | Single source of truth                        |
 | test URLs    | ident.me, eth0.me, checkip.amazonaws.com | `shared/test_urls.{sh,ps1}` | Single source of truth |
 
@@ -113,11 +139,11 @@ outbound dict ourselves to compensate.
 
 `update_geodata.sh|.ps1` downloads runetfreedom `geoip.dat` + `geosite.dat`
 (v2ray protobuf). `geo_convert.py` parses them with a minimal protobuf reader
-and emits one `*.json` per category referenced in `config_base.json`. sing-box
+and emits one `*.json` per category referenced in `proxies.conf`. sing-box
 loads each as a `local`/`source`-format rule-set.
 
-Categories are extracted automatically from the rule-set paths in
-`config_base.json` (no separate list to maintain).
+Categories are extracted automatically from the geosites/geoips sections in
+`proxies.conf` (no separate list to maintain).
 
 ## Known gotchas
 

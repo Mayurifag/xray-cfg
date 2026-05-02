@@ -2,7 +2,7 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    Add a domain to a proxy outbound rule in config_base.json, restart proxy.
+    Add a domain to a proxy in proxies.conf, restart proxy.
 #>
 [CmdletBinding()]
 param(
@@ -16,23 +16,17 @@ $ErrorActionPreference = 'Stop'
 
 Assert-Admin
 
-if (-not (Test-Path $ConfigBase)) { Write-Error "$ConfigBase not found"; exit 1 }
+if (-not (Test-Path $ProxiesConf)) { Write-Error "$ProxiesConf not found"; exit 1 }
 Invoke-GitPullIfClean
-
-$cfg = Get-Content $ConfigBase -Raw | ConvertFrom-Json
 
 if ([string]::IsNullOrWhiteSpace($Domain)) {
     $Domain = Read-Host 'Enter domain (e.g. example.com)'
 }
 $Domain = Format-Domain $Domain
 
-$tags = @(
-    $cfg.route.rules |
-        Where-Object { $_.PSObject.Properties['domain'] -and $_.domain -ne $null } |
-        ForEach-Object { $_.outbound } |
-        Select-Object -Unique | Sort-Object
-)
-if ($tags.Count -eq 0) { Write-Error 'No outbound rules with domain arrays'; exit 1 }
+$tagsArgs = @((Join-Path $RepoRoot 'shared\proxies_conf.py'), 'tags', $ProxiesConf)
+$tags = @(Invoke-Python -Arguments $tagsArgs | Where-Object { $_ })
+if ($LASTEXITCODE -ne 0 -or $tags.Count -eq 0) { Write-Error 'No proxy tags found'; exit 1 }
 
 if ([string]::IsNullOrWhiteSpace($Proxy)) {
     Write-Host 'Available proxy tags:'
@@ -50,13 +44,13 @@ if ([string]::IsNullOrWhiteSpace($Proxy)) {
     exit 1
 }
 
-$rule = $cfg.route.rules | Where-Object { $_.outbound -eq $Proxy -and $_.PSObject.Properties['domain'] }
-if ($rule.domain -contains $Domain) { Write-Host "No-op: $Domain already in $Proxy."; exit 0 }
-$rule.domain = @(($rule.domain + $Domain) | Select-Object -Unique | Sort-Object)
+$addArgs = @(
+    (Join-Path $RepoRoot 'shared\proxies_conf.py'),
+    'add-domain', $Proxy, $Domain, $ProxiesConf
+)
+Invoke-Python -Arguments $addArgs
+if ($LASTEXITCODE -ne 0) { Write-Error 'add-domain failed'; exit 1 }
 
-$json = (($cfg | ConvertTo-Json -Depth 30 | & jq '.') -join "`n") + "`n"
-[System.IO.File]::WriteAllText($ConfigBase, $json, (New-Object System.Text.UTF8Encoding $false))
-Write-Host "Success: added $Domain to $Proxy."
 Invoke-GitCommitAndPush "chore(routing): add $Domain to $Proxy"
 
 Write-Host 'Restarting proxy...'

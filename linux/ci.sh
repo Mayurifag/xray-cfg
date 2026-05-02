@@ -8,9 +8,8 @@ done
 
 python3 -c "import ast,sys
 for p in sys.argv[1:]: ast.parse(open(p).read(), p)" \
-    shared/sub_parse.py shared/build_config.py shared/geo_convert.py
+    shared/sub_parse.py shared/build_config.py shared/geo_convert.py shared/proxies_conf.py
 
-python3 -c "import json,sys
-for p in sys.argv[1:]: json.load(open(p))" config_base.json
+python3 shared/proxies_conf.py tags proxies.conf >/dev/null
 
-echo "linux ci: shell + python + json lint pass"
+echo "linux ci: shell + python + proxies.conf parse pass"

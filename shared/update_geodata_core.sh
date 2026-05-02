@@ -26,4 +26,4 @@ fetch_if_stale "$GEOSITE_URL" "$GEOSITE_PATH"
 
 echo "Geodata: $(wc -c < "$GEOIP_PATH") bytes geoip, $(wc -c < "$GEOSITE_PATH") bytes geosite"
 
-python3 shared/geo_convert.py "$GEOSITE_PATH" "$GEOIP_PATH" "$RULE_SET_DIR" --from-config config_base.json
+python3 shared/geo_convert.py "$GEOSITE_PATH" "$GEOIP_PATH" "$RULE_SET_DIR" --from-proxies-conf proxies.conf

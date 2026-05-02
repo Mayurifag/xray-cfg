@@ -1,4 +1,4 @@
-.PHONY: ci setup teardown restart test cycle status logs flush-dns update-geodata add-domain remove-domain
+.PHONY: ci setup teardown restart test cycle status logs flush-dns update-geodata add-domain remove-domain generate-config
 
 # ── platform detection ────────────────────────────────────────────────────────
 ifeq ($(OS),Windows_NT)
@@ -15,6 +15,7 @@ ifeq ($(OS),Windows_NT)
   cmd_add_domain   := $(PS) windows/add_domain.ps1 $(domain) $(proxy)
   cmd_rm_domain    := $(PS) windows/remove_domain.ps1 $(domain)
   cmd_ci           := $(PS) windows/ci.ps1
+  cmd_gen_config   := $(PS) windows/generate_config.ps1
 else ifeq ($(shell uname),Darwin)
   cmd_setup        := bash macos/setup.sh
   cmd_teardown     := bash macos/teardown.sh
@@ -26,6 +27,7 @@ else ifeq ($(shell uname),Darwin)
   cmd_add_domain   := bash macos/add_domain.sh $(domain) $(proxy)
   cmd_rm_domain    := bash macos/remove_domain.sh $(domain)
   cmd_ci           := bash macos/ci.sh
+  cmd_gen_config   := bash macos/generate_config.sh
 else
   cmd_setup        := bash linux/setup.sh
   cmd_teardown     := bash linux/teardown.sh
@@ -37,6 +39,7 @@ else
   cmd_add_domain   := bash linux/add_domain.sh $(domain) $(proxy)
   cmd_rm_domain    := bash linux/remove_domain.sh $(domain)
   cmd_ci           := bash linux/ci.sh
+  cmd_gen_config   := bash linux/generate_config.sh
 endif
 
 # ── targets ───────────────────────────────────────────────────────────────────
@@ -80,3 +83,6 @@ add-domain:
 
 remove-domain:
 	$(cmd_rm_domain)
+
+generate-config:
+	$(cmd_gen_config)

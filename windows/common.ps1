@@ -12,7 +12,7 @@ $Script:SingboxExe = Join-Path $SingboxDir 'sing-box.exe'
 $Script:SingboxConfig = Join-Path $RuntimeDir 'config.json'
 $Script:RuleSetDir = Join-Path $RuntimeDir 'rule-sets'
 $Script:GeodataDir = Join-Path $RuntimeDir 'geodata'
-$Script:ConfigBase = Join-Path $RepoRoot 'config_base.json'
+$Script:ProxiesConf = Join-Path $RepoRoot 'proxies.conf'
 $Script:SecretsFile = Join-Path $RepoRoot 'secrets.ejson'
 $Script:TaskNameSingbox = 'proxies-cfg-singbox'
 $Script:TaskNameGeodata = 'proxies-cfg-geodata'
@@ -32,14 +32,13 @@ function Write-Phase {
 }
 
 function Get-PythonExe {
+    if ($Script:_PythonExeCache) { return $Script:_PythonExeCache }
     foreach ($name in @('python3', 'python', 'py')) {
         $cmd = Get-Command $name -ErrorAction SilentlyContinue
         if ($cmd) {
-            if ($cmd.Name -eq 'py') {
-                # py launcher: prefer Python 3
-                return @{ Exe = $cmd.Source; PrefixArgs = @('-3') }
-            }
-            return @{ Exe = $cmd.Source; PrefixArgs = @() }
+            $prefix = if ($cmd.Name -eq 'py') { @('-3') } else { @() }
+            $Script:_PythonExeCache = @{ Exe = $cmd.Source; PrefixArgs = $prefix }
+            return $Script:_PythonExeCache
         }
     }
     Write-Error 'Python 3 not found. Install Python 3.9+.'
@@ -47,31 +46,16 @@ function Get-PythonExe {
 }
 
 function Invoke-Python {
-    param(
-        [Parameter(Mandatory)][string[]]$Arguments
-    )
+    param([Parameter(Mandatory)][string[]]$Arguments)
     $py = Get-PythonExe
     return & $py.Exe @($py.PrefixArgs + $Arguments)
 }
 
 function Build-SingboxConfig {
-    if (-not (Get-Command ejson -ErrorAction SilentlyContinue)) {
-        Write-Error 'ejson not found in PATH.'
-        exit 1
-    }
-    # PowerShell splits external stdout into an array of lines; collapse to single string.
-    $secrets = (& ejson decrypt $SecretsFile | Out-String).Trim()
-    if (-not $secrets) { Write-Error 'ejson decrypt produced empty output.'; exit 1 }
     if (-not (Test-Path $RuntimeDir)) { New-Item -ItemType Directory -Path $RuntimeDir | Out-Null }
-    $pyArgs = @(
-        (Join-Path $RepoRoot 'shared\build_config.py'),
-        $ConfigBase,
-        $secrets,
-        $RuleSetDir
-    )
-    $json = (Invoke-Python -Arguments $pyArgs) -join "`n"
+    $json = (& "$PSScriptRoot\generate_config.ps1") -join "`n"
     if ($LASTEXITCODE -ne 0) {
-        Write-Error 'build_config.py failed.'
+        Write-Error 'generate_config.ps1 failed.'
         exit 1
     }
     [System.IO.File]::WriteAllText($SingboxConfig, $json, (New-Object System.Text.UTF8Encoding $false))
@@ -112,8 +96,8 @@ function Invoke-GitCommitAndPush {
     param([string]$CommitMessage, [string]$Path = $RepoRoot)
     Push-Location $Path
     try {
-        git add config_base.json
-        if (git status --porcelain config_base.json) {
+        git add proxies.conf
+        if (git status --porcelain proxies.conf) {
             git commit -m $CommitMessage
             git push
             Write-Host 'Changes committed and pushed.'

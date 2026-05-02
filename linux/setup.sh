@@ -3,31 +3,18 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 source linux/common.sh
-source shared/constants.sh
 
 mkdir -p "$RUNTIME_DIR/bin" "$RULE_SET_DIR" "$GEODATA_DIR"
 
-ARCH=$(uname -m)
-case "$ARCH" in
+case "$(uname -m)" in
     x86_64)  SINGBOX_ARCH=linux-amd64 ;;
     aarch64) SINGBOX_ARCH=linux-arm64 ;;
-    *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
+    *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
 esac
+export SINGBOX_ARCH SINGBOX_BIN RUNTIME_DIR
 
-SINGBOX_URL="https://github.com/$SINGBOX_REPO/releases/download/v$SINGBOX_VERSION/sing-box-$SINGBOX_VERSION-$SINGBOX_ARCH.tar.gz"
-SINGBOX_TAR="$RUNTIME_DIR/sing-box-$SINGBOX_VERSION-$SINGBOX_ARCH.tar.gz"
-
-echo "[setup] arch=$ARCH sing-box-extended=$SINGBOX_VERSION"
-
-if [[ ! -x "$SINGBOX_BIN" ]]; then
-    if [[ ! -s "$SINGBOX_TAR" ]]; then
-        echo "[setup] downloading sing-box-extended..."
-        curl -fsSL --retry 3 --retry-delay 2 -o "$SINGBOX_TAR.tmp" "$SINGBOX_URL"
-        mv "$SINGBOX_TAR.tmp" "$SINGBOX_TAR"
-    fi
-    tar -xzf "$SINGBOX_TAR" -C "$RUNTIME_DIR/bin" --strip-components=1
-fi
-chmod +x "$SINGBOX_BIN"
+echo "[setup] arch=$SINGBOX_ARCH sing-box-extended=$SINGBOX_VERSION"
+bash shared/install_singbox.sh
 
 echo '[setup] geodata + rule-sets'
 bash linux/update_geodata.sh

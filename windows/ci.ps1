@@ -6,10 +6,10 @@
     Heavy e2e lives in `make cycle` / `make test` and requires admin + network.
     Mirrors macos/ci.sh.
 #>
+. "$PSScriptRoot\common.ps1"
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
-$RepoRoot = Split-Path $PSScriptRoot -Parent
 
 $failed = 0
 
@@ -34,9 +34,16 @@ foreach ($j in Get-ChildItem -Path $RepoRoot -Filter '*.json' -File -Recurse |
     }
 }
 
+$tagsArgs = @((Join-Path $RepoRoot 'shared\proxies_conf.py'), 'tags', $ProxiesConf)
+Invoke-Python -Arguments $tagsArgs | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host 'PROXIES.CONF FAIL: parse error' -ForegroundColor Red
+    $failed++
+}
+
 if ($failed -gt 0) {
     Write-Error "windows ci: $failed file(s) failed"
     exit 1
 }
 
-Write-Output 'windows ci: PowerShell parse + JSON lint pass (run `make cycle` for full e2e)'
+Write-Output 'windows ci: PowerShell parse + JSON + proxies.conf pass (run `make cycle` for full e2e)'

@@ -16,10 +16,9 @@ $ErrorActionPreference = 'Stop'
 
 Assert-Admin
 
-if (-not (Test-Path $RuntimeDir))  { New-Item -ItemType Directory -Path $RuntimeDir  | Out-Null }
-if (-not (Test-Path $SingboxDir))  { New-Item -ItemType Directory -Path $SingboxDir  | Out-Null }
-if (-not (Test-Path $RuleSetDir))  { New-Item -ItemType Directory -Path $RuleSetDir  | Out-Null }
-if (-not (Test-Path $GeodataDir))  { New-Item -ItemType Directory -Path $GeodataDir  | Out-Null }
+foreach ($d in $RuntimeDir, $SingboxDir, $RuleSetDir, $GeodataDir) {
+    if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d | Out-Null }
+}
 
 Start-Transcript -Path (Join-Path $RuntimeDir 'setup.log') -Append | Out-Null
 
@@ -60,12 +59,6 @@ if ($LASTEXITCODE -ne 0) { Write-Error 'update_geodata.ps1 failed'; exit 1 }
 Write-Phase 'setup' 'Phase 3: build sing-box config from subscriptions'
 Build-SingboxConfig
 
-# Windows-specific tweak: pin TUN adapter name so teardown can find it.
-$cfgRaw = Get-Content $SingboxConfig -Raw | ConvertFrom-Json
-$cfgRaw.inbounds[0] | Add-Member -NotePropertyName 'interface_name' -NotePropertyValue $TunAdapterName -Force
-$json = $cfgRaw | ConvertTo-Json -Depth 30
-[System.IO.File]::WriteAllText($SingboxConfig, $json, (New-Object System.Text.UTF8Encoding $false))
-
 Write-Phase 'setup' 'Phase 4: validate config'
 & $SingboxExe check -c $SingboxConfig
 if ($LASTEXITCODE -ne 0) { Write-Error 'sing-box check failed'; exit 1 }
@@ -74,18 +67,20 @@ Write-Phase 'setup' 'Phase 5: stop existing process if any'
 Get-Process -Name 'sing-box' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 Write-Phase 'setup' 'Phase 6: register Scheduled Tasks'
-$action  = New-ScheduledTaskAction -Execute $SingboxExe -Argument "run -c `"$SingboxConfig`"" -WorkingDirectory $RuntimeDir
-$trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -Hidden -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 99 -RestartInterval (New-TimeSpan -Minutes 1)
 $principal = New-ScheduledTaskPrincipal -UserId 'NT AUTHORITY\SYSTEM' -RunLevel Highest
-Register-ScheduledTask -TaskName $TaskNameSingbox -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+$common = @{ Settings = $settings; Principal = $principal; Force = $true }
 
+$singboxAction  = New-ScheduledTaskAction -Execute $SingboxExe -Argument "run -c `"$SingboxConfig`"" -WorkingDirectory $RuntimeDir
+$singboxTrigger = New-ScheduledTaskTrigger -AtLogOn
+Register-ScheduledTask -TaskName $TaskNameSingbox -Action $singboxAction -Trigger $singboxTrigger @common | Out-Null
+
+$pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
+$geoExe = if ($pwshCmd) { $pwshCmd.Source } else { 'powershell.exe' }
 $geoArgs = "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PSScriptRoot\update_geodata.ps1`""
-$geoExe  = (Get-Command pwsh -ErrorAction SilentlyContinue)?.Source
-if (-not $geoExe) { $geoExe = 'powershell.exe' }
-$geoAction  = New-ScheduledTaskAction -Execute $geoExe -Argument $geoArgs
+$geoAction = New-ScheduledTaskAction -Execute $geoExe -Argument $geoArgs
 $geoTrigger = New-ScheduledTaskTrigger -Daily -At '03:00'
-Register-ScheduledTask -TaskName $TaskNameGeodata -Action $geoAction -Trigger $geoTrigger -Settings $settings -Principal $principal -Force | Out-Null
+Register-ScheduledTask -TaskName $TaskNameGeodata -Action $geoAction -Trigger $geoTrigger @common | Out-Null
 
 Write-Phase 'setup' 'Phase 7: start sing-box task'
 Start-ScheduledTask -TaskName $TaskNameSingbox

@@ -1,12 +1,9 @@
 #!/bin/bash
 # Sourced by every bash script. Caller must `cd` to the repo root first.
 
-CONFIG_FILE=config_base.json
+PROXIES_CONF=proxies.conf
 SECRETS_FILE=secrets.ejson
-
-ensure_jq() {
-    command -v jq >/dev/null 2>&1 || { echo 'Error: jq required but not in PATH.' >&2; exit 1; }
-}
+export PROXIES_CONF SECRETS_FILE
 
 format_domain() {
     local d="$1"
@@ -14,10 +11,6 @@ format_domain() {
     d="${d#http://}"
     d="${d#https://}"
     echo "${d%%/*}"
-}
-
-get_proxy_tags() {
-    jq -r '.route.rules[] | select(.domain != null) | .outbound' "$CONFIG_FILE" | sort -u
 }
 
 ejson_decrypt_secret() {
@@ -30,12 +23,8 @@ sys.stdout.write(json.load(sys.stdin)[sys.argv[1]])
 }
 
 generate_singbox_config() {
-    local secrets
-    secrets=$(ejson decrypt "$SECRETS_FILE")
     mkdir -p "$RUNTIME_DIR"
-    # sing-box resolves relative paths against its WorkingDirectory; pass absolute.
-    python3 shared/build_config.py "$CONFIG_FILE" "$secrets" "$(pwd)/$RULE_SET_DIR" \
-        > "$SINGBOX_CONFIG"
+    bash "$GENERATE_CONFIG" > "$SINGBOX_CONFIG"
 }
 
 git_pull_if_clean() {
@@ -49,7 +38,7 @@ git_pull_if_clean() {
 }
 
 git_commit_and_push() {
-    git add "$CONFIG_FILE"
+    git add "$PROXIES_CONF"
     if ! git diff --cached --quiet; then
         git commit -m "$1"
         git push

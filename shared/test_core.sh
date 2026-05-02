@@ -1,6 +1,6 @@
 #!/bin/bash
 # Cross-platform integration test core. Caller must `cd` to repo root and
-# export: SETUP, TEARDOWN, CONFIG_FILE. Optional: CURL_HTTP3, DNS_CHECK_CMD.
+# export: SETUP, TEARDOWN. Optional: CURL_HTTP3, DNS_CHECK_CMD.
 set -euo pipefail
 
 source shared/constants.sh
@@ -28,7 +28,7 @@ for pair in "it=$IT" "ru=$RU"; do
 done
 echo "  All checkers agree on real IP: $DIRECT"
 
-jq empty "$CONFIG_FILE" >/dev/null || { echo "$CONFIG_FILE invalid" >&2; exit 1; }
+python3 shared/proxies_conf.py tags proxies.conf >/dev/null || { echo 'proxies.conf invalid' >&2; exit 1; }
 
 echo '=== Setup ==='
 bash "$SETUP"

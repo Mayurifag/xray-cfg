@@ -3,7 +3,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 source macos/common.sh
-source shared/constants.sh
 
 assert_root "$@"
 
@@ -11,29 +10,15 @@ phase() { echo "[$(date '+%H:%M:%S')] [setup] $*" >&2; }
 
 mkdir -p "$RUNTIME_DIR" "$SINGBOX_DIR" "$RULE_SET_DIR" "$GEODATA_DIR"
 
-ARCH=$(uname -m)
-case "$ARCH" in
+case "$(uname -m)" in
     arm64)  SINGBOX_ARCH=darwin-arm64 ;;
     x86_64) SINGBOX_ARCH=darwin-amd64 ;;
-    *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
+    *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
 esac
+export SINGBOX_ARCH SINGBOX_BIN RUNTIME_DIR
 
-SINGBOX_URL="https://github.com/$SINGBOX_REPO/releases/download/v$SINGBOX_VERSION/sing-box-$SINGBOX_VERSION-$SINGBOX_ARCH.tar.gz"
-SINGBOX_TAR="$RUNTIME_DIR/sing-box-$SINGBOX_VERSION-$SINGBOX_ARCH.tar.gz"
-
-phase "arch=$ARCH sing-box-extended=$SINGBOX_VERSION"
-
-if [[ ! -x "$SINGBOX_BIN" ]]; then
-    if [[ ! -s "$SINGBOX_TAR" ]]; then
-        phase "downloading $SINGBOX_URL"
-        curl -fsSL --retry 3 --retry-delay 2 -o "$SINGBOX_TAR.tmp" "$SINGBOX_URL"
-        mv "$SINGBOX_TAR.tmp" "$SINGBOX_TAR"
-    fi
-    phase "extracting to $SINGBOX_DIR"
-    /usr/bin/tar -xzf "$SINGBOX_TAR" -C "$SINGBOX_DIR" --strip-components=1
-fi
-xattr -d com.apple.quarantine "$SINGBOX_BIN" 2>/dev/null || true
-chmod +x "$SINGBOX_BIN"
+phase "arch=$SINGBOX_ARCH sing-box-extended=$SINGBOX_VERSION"
+bash shared/install_singbox.sh
 
 phase 'geodata + rule-sets'
 bash macos/update_geodata.sh

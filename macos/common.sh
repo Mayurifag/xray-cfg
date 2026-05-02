@@ -2,6 +2,7 @@
 # macOS-specific helpers. Sourced after caller cd's to repo root.
 
 source shared/common.sh
+source shared/constants.sh
 
 RUNTIME_DIR=macos/runtime
 SINGBOX_DIR="$RUNTIME_DIR/bin"
@@ -10,14 +11,14 @@ SINGBOX_CONFIG="$RUNTIME_DIR/config.json"
 RULE_SET_DIR="$RUNTIME_DIR/rule-sets"
 GEODATA_DIR="$RUNTIME_DIR/geodata"
 SINGBOX_LOG="$RUNTIME_DIR/singbox.log"
+GENERATE_CONFIG="macos/generate_config.sh"
 
 LAUNCH_DAEMON_DIR=/Library/LaunchDaemons
 LABELS=(com.proxies-cfg.singbox com.proxies-cfg.geodata)
 # Cleaned up by teardown if present.
 LEGACY_LABELS=(com.xray-cfg.singbox com.xray-cfg.geodata com.xray-cfg.xray com.xray-cfg.logrotate)
 
-# IPv4 inside the TUN's /30. Must stay in sync with config_base.json.
-TUN_INET=172.19.0.1
+export RULE_SET_DIR GEODATA_DIR
 
 assert_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -27,18 +28,6 @@ assert_root() {
         script="$(pwd)/$0"
         printf '%s\n' "$pw" | sudo -S -k -p '' bash "$script" "$@"
         exit $?
-    fi
-}
-
-ensure_jq() {
-    if ! command -v jq &>/dev/null; then
-        if command -v brew &>/dev/null; then
-            echo "[macos] installing jq via brew..." >&2
-            brew install jq
-        else
-            echo "Error: jq not installed and brew not available." >&2
-            exit 1
-        fi
     fi
 }
 

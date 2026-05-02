@@ -41,7 +41,7 @@ Write-Phase 'geodata' "converting .dat -> sing-box rule-sets in $RuleSetDir"
 $pyArgs = @(
     (Join-Path $RepoRoot 'shared\geo_convert.py'),
     $GeoSitePath, $GeoIpPath, $RuleSetDir,
-    '--from-config', $ConfigBase
+    '--from-proxies-conf', $ProxiesConf
 )
 Invoke-Python -Arguments $pyArgs
 if ($LASTEXITCODE -ne 0) { Write-Error 'geo_convert.py failed'; exit 1 }

@@ -4,7 +4,7 @@ JSON files. Only emits categories supplied as arguments.
 
 Usage:
     python3 geo_convert.py <geosite.dat> <geoip.dat> <out_dir> \
-        --geosite cat1 cat2 ... --geoip code1 code2 ...
+        [--geosite cat1 ...] [--geoip code1 ...] [--from-proxies-conf path]
 
 Output:
     <out_dir>/geosite-<cat>.json
@@ -158,12 +158,11 @@ def geoip_to_ruleset(cidrs: list[tuple[bytes, int]]) -> dict:
     return {'version': 3, 'rules': [{'ip_cidr': sorted(set(out_cidrs))}]}
 
 
-def categories_from_config(config_path: str) -> tuple[list[str], list[str]]:
-    import re
-    text = open(config_path).read()
-    geosite = sorted(set(re.findall(r'geosite-([a-z0-9_-]+)\.json', text)))
-    geoip = sorted(set(re.findall(r'geoip-([a-z0-9_-]+)\.json', text)))
-    return geosite, geoip
+def categories_from_proxies_conf(path: str) -> tuple[list[str], list[str]]:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from proxies_conf import all_of_kind, load
+    data = load(path)
+    return all_of_kind(data, 'geosites'), all_of_kind(data, 'geoips')
 
 
 def main() -> int:
@@ -173,12 +172,12 @@ def main() -> int:
     p.add_argument('out_dir')
     p.add_argument('--geosite', nargs='*', default=[])
     p.add_argument('--geoip', nargs='*', default=[])
-    p.add_argument('--from-config', default=None,
-                   help='extract category list from rule_set paths in this config_base.json')
+    p.add_argument('--from-proxies-conf', default=None,
+                   help='extract category list from a proxies.conf file')
     args = p.parse_args()
 
-    if args.from_config:
-        gs, gi = categories_from_config(args.from_config)
+    if args.from_proxies_conf:
+        gs, gi = categories_from_proxies_conf(args.from_proxies_conf)
         args.geosite = list(args.geosite) + gs
         args.geoip = list(args.geoip) + gi
 

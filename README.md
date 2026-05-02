@@ -1,6 +1,6 @@
 # proxies-cfg
 
-Personal TUN-based transparent proxy. Single binary
+Personal TUN-based transparent proxy setup. Single binary
 ([shtorm-7/sing-box-extended](https://github.com/shtorm-7/sing-box-extended) —
 upstream sing-box has no `xhttp` transport), driven entirely from subscription
 URLs.
@@ -13,10 +13,11 @@ URLs.
   Re-fetched on every `setup`.
 - runetfreedom geoip + geosite lists, refreshed daily, converted at install time
   to sing-box JSON rule-sets.
+- Currently supports hysteria2 and VLESS/xhttp/Reality.
 - DNS-over-HTTPS to 1.1.1.1 / 8.8.8.8.
 - Credentials (sub URLs, sudo passwords) encrypted via `ejson`.
 - Linux (systemd), macOS (LaunchDaemon), Windows (Scheduled Task) — same
-  `config_base.json`, same Python build pipeline.
+  `proxies.conf`, same Python build pipeline.
 
 ## Subscription format
 
@@ -39,11 +40,11 @@ All three are anti-detection polish, not auth — connections still succeed.
 
 ## Prerequisites
 
-| OS      | Required                                                                            |
-| ------- | ----------------------------------------------------------------------------------- |
-| Linux   | `ejson`, `python3` (3.9+), `jq`, `curl`, `systemd`                                  |
-| macOS   | `ejson`, `python3`, `jq` (auto-installed via brew), brew `curl` for HTTP/3 tests    |
-| Windows | `ejson`, Python 3.9+ in `PATH`, `jq` (for `add_domain`/`remove_domain`), `make`     |
+| OS      | Required                                                                         |
+| ------- | -------------------------------------------------------------------------------- |
+| Linux   | `ejson`, `python3` (3.9+), `curl`, `systemd`                                     |
+| macOS   | `ejson`, `python3`, brew `curl` for HTTP/3 tests                                 |
+| Windows | `ejson`, Python 3.9+ in `PATH`, `make`                                           |
 
 ### macOS: disable Touch ID for sudo (one-time)
 
@@ -71,6 +72,7 @@ Restore: `sudo cp /etc/pam.d/sudo_local.bak.proxiescfg /etc/pam.d/sudo_local`.
 | `make logs`           | follow proxy log                           |
 | `make flush-dns`      | flush DNS cache                            |
 | `make update-geodata` | refresh runetfreedom .dat → JSON rule-sets |
+| `make generate-config`| print sing-box config to stdout (inspection) |
 
 ## Domains
 
@@ -80,7 +82,7 @@ make remove-domain domain=kremlin.ru
 make add-domain   # interactive prompt
 ~~~
 
-Edits `config_base.json` then restarts the proxy.
+Edits `proxies.conf` then restarts the proxy.
 
 ## Suggested shell aliases
 

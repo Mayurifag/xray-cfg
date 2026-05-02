@@ -11,3 +11,6 @@ DIRECT_TEST_URL="https://checkip.amazonaws.com"
 PROXY_IT_TEST_URL="https://eth0.me"
 PROXY_RU_TEST_URL="https://ident.me"
 ALL_TEST_URLS=("$DIRECT_TEST_URL" "$PROXY_IT_TEST_URL" "$PROXY_RU_TEST_URL")
+
+# IPv4 inside the TUN's /30. Must match address in shared/build_config.py base.
+TUN_INET=172.19.0.1
