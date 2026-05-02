@@ -26,7 +26,7 @@ $Domain = Format-Domain $Domain
 
 $tagsArgs = @((Join-Path $RepoRoot 'shared\proxies_conf.py'), 'tags', $ProxiesConf)
 $tags = @(Invoke-Python -Arguments $tagsArgs | Where-Object { $_ })
-if ($LASTEXITCODE -ne 0 -or $tags.Count -eq 0) { Write-Error 'No proxy tags found'; exit 1 }
+if ($tags.Count -eq 0) { Write-Error 'No proxy tags found'; exit 1 }
 
 if ([string]::IsNullOrWhiteSpace($Proxy)) {
     Write-Host 'Available proxy tags:'
@@ -49,7 +49,6 @@ $addArgs = @(
     'add-domain', $Proxy, $Domain, $ProxiesConf
 )
 Invoke-Python -Arguments $addArgs
-if ($LASTEXITCODE -ne 0) { Write-Error 'add-domain failed'; exit 1 }
 
 Invoke-GitCommitAndPush "chore(routing): add $Domain to $Proxy"
 

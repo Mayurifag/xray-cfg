@@ -34,8 +34,8 @@ function Write-Result {
 
 if ($Mode -ne 'direct') {
     Write-Host '[test] Pre-flight state checks...' -ForegroundColor Cyan
-    Write-Result 'pre-flight: sing-box process running' (Get-Process -Name 'sing-box' -ErrorAction SilentlyContinue) -ne $null
-    Write-Result "pre-flight: $TunAdapterName adapter present" (Get-NetAdapter -Name $TunAdapterName -ErrorAction SilentlyContinue) -ne $null
+    Write-Result 'pre-flight: sing-box process running' ([bool](Get-Process -Name 'sing-box' -ErrorAction SilentlyContinue))
+    Write-Result "pre-flight: $TunAdapterName adapter present" ([bool](Get-NetAdapter -Name $TunAdapterName -ErrorAction SilentlyContinue))
 }
 
 if ($Mode -eq 'all') {

@@ -22,4 +22,3 @@ $pyArgs = @(
     '--interface-name', $TunAdapterName
 )
 Invoke-Python -Arguments $pyArgs
-exit $LASTEXITCODE

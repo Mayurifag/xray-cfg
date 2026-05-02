@@ -35,9 +35,10 @@ foreach ($j in Get-ChildItem -Path $RepoRoot -Filter '*.json' -File -Recurse |
 }
 
 $tagsArgs = @((Join-Path $RepoRoot 'shared\proxies_conf.py'), 'tags', $ProxiesConf)
-Invoke-Python -Arguments $tagsArgs | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host 'PROXIES.CONF FAIL: parse error' -ForegroundColor Red
+try {
+    Invoke-Python -Arguments $tagsArgs | Out-Null
+} catch {
+    Write-Host "PROXIES.CONF FAIL: $_" -ForegroundColor Red
     $failed++
 }
 

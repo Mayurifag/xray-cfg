@@ -32,23 +32,34 @@ function Write-Phase {
 }
 
 function Get-PythonExe {
-    if ($Script:_PythonExeCache) { return $Script:_PythonExeCache }
+    if (Get-Variable -Name '_PythonExeCache' -Scope Script -ErrorAction SilentlyContinue) {
+        return $Script:_PythonExeCache
+    }
     foreach ($name in @('python3', 'python', 'py')) {
-        $cmd = Get-Command $name -ErrorAction SilentlyContinue
-        if ($cmd) {
-            $prefix = if ($cmd.Name -eq 'py') { @('-3') } else { @() }
+        $candidates = Get-Command $name -ErrorAction SilentlyContinue -All
+        if (-not $candidates) { continue }
+        foreach ($cmd in $candidates) {
+            if ($cmd.Source -match '\\WindowsApps\\') { continue }
+            if ($cmd.Source -notmatch '\.exe$') { continue }
+            if (-not (Test-Path $cmd.Source) -or (Get-Item $cmd.Source).Length -lt 1024) { continue }
+            $prefix = if ($cmd.Name -eq 'py' -or $cmd.Name -eq 'py.exe') { @('-3') } else { @() }
             $Script:_PythonExeCache = @{ Exe = $cmd.Source; PrefixArgs = $prefix }
             return $Script:_PythonExeCache
         }
     }
-    Write-Error 'Python 3 not found. Install Python 3.9+.'
+    Write-Error 'Python 3 not found. Install Python 3.9+ (real interpreter, not the MS Store stub).'
     exit 1
 }
 
 function Invoke-Python {
     param([Parameter(Mandatory)][string[]]$Arguments)
     $py = Get-PythonExe
-    return & $py.Exe @($py.PrefixArgs + $Arguments)
+    $global:LASTEXITCODE = 0
+    $output = & $py.Exe @($py.PrefixArgs + $Arguments)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Python failed (exit $LASTEXITCODE): $($Arguments -join ' ')"
+    }
+    return $output
 }
 
 function Build-SingboxConfig {
