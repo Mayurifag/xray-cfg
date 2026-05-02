@@ -10,7 +10,8 @@ command -v ejson >/dev/null || { echo 'Error: ejson required.' >&2; exit 1; }
 secrets=$(ejson decrypt "$SECRETS_FILE")
 [[ -n "$secrets" ]] || { echo 'Error: ejson decrypt produced empty output.' >&2; exit 1; }
 
-args=("$PROXIES_CONF" "$secrets" "$(pwd)/$RULE_SET_DIR")
+args=("$PROXIES_CONF" "$(pwd)/$RULE_SET_DIR")
 [[ -n "${INTERFACE_NAME:-}" ]] && args+=(--interface-name "$INTERFACE_NAME")
+[[ -n "${SINGBOX_LOG:-}" ]] && args+=(--log-output "$(pwd)/$SINGBOX_LOG")
 
-exec python3 shared/build_config.py "${args[@]}"
+exec python3 shared/build_config.py "${args[@]}" <<<"$secrets"

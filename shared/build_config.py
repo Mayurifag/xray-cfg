@@ -2,12 +2,16 @@
 """Assemble a sing-box-extended config from proxies.conf + subscription URLs.
 
 Usage:
-    python3 build_config.py <proxies_conf> <secrets_json> <rule_set_dir> \
-        [--interface-name NAME]
+    cat secrets.json | python3 build_config.py <proxies_conf> <rule_set_dir> \
+        [--interface-name NAME] [--log-output PATH]
 
 Reads proxies.conf for routing source-of-truth, expands rule_set + route.rules,
-fetches each `<tag>.sub_url` from the decrypted secrets dict, parses the URI
-via sub_parse, and appends the resulting outbounds. Sub fetch failure is fatal.
+fetches each `<tag>.sub_url` from the decrypted secrets dict (read from
+stdin), parses the URI via sub_parse, and appends the resulting outbounds.
+Sub fetch failure is fatal.
+
+Secrets come via stdin so multi-line JSON survives PowerShell 5.1 native
+arg passing (which mangles arg-borne quotes).
 
 Static base config (log/dns/inbounds/sniff+hijack rules/final/etc.) is inlined
 below — single source of truth. `--interface-name` pins the TUN adapter name
@@ -25,9 +29,12 @@ import sub_parse  # noqa: E402
 from proxies_conf import all_of_kind, load  # noqa: E402
 
 
-def _base_config() -> dict:
+def _base_config(log_output: str | None = None) -> dict:
+    log = {'level': 'warn', 'timestamp': True}
+    if log_output:
+        log['output'] = log_output
     return {
-        'log': {'level': 'warn', 'timestamp': True},
+        'log': log,
         'dns': {
             'servers': [
                 {'type': 'https', 'tag': 'doh-cf', 'server': '1.1.1.1'},
@@ -64,8 +71,9 @@ def _geo_tags(kinds: dict) -> list[str]:
 
 
 def build(proxies_path: str, secrets: dict, rule_set_dir: str,
-          interface_name: str | None = None) -> dict:
-    cfg = _base_config()
+          interface_name: str | None = None,
+          log_output: str | None = None) -> dict:
+    cfg = _base_config(log_output)
     if interface_name:
         cfg['inbounds'][0]['interface_name'] = interface_name
 
@@ -96,14 +104,15 @@ def build(proxies_path: str, secrets: dict, rule_set_dir: str,
 
 
 def main() -> int:
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(description='Reads secrets JSON from stdin.')
     p.add_argument('proxies_conf')
-    p.add_argument('secrets_json')
     p.add_argument('rule_set_dir')
     p.add_argument('--interface-name', default=None)
+    p.add_argument('--log-output', default=None)
     args = p.parse_args()
-    cfg = build(args.proxies_conf, json.loads(args.secrets_json),
-                args.rule_set_dir, args.interface_name)
+    secrets = json.load(sys.stdin)
+    cfg = build(args.proxies_conf, secrets, args.rule_set_dir,
+                args.interface_name, args.log_output)
     json.dump(cfg, sys.stdout, indent=2)
     return 0
 

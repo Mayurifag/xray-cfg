@@ -26,7 +26,6 @@ $rmArgs = @(
     'remove-domain', $Domain, $ProxiesConf
 )
 Invoke-Python -Arguments $rmArgs
-if ($LASTEXITCODE -ne 0) { Write-Error 'remove-domain failed'; exit 1 }
 
 Invoke-GitCommitAndPush "chore(routing): remove $Domain"
 

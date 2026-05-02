@@ -27,7 +27,7 @@ authentication. `pam_faillock` active — 3 failed attempts lock account. Reset:
 
 ~~~
 proxies.conf                      source-of-truth routing config: per-tag [domains/geosites/geoips] sections
-Makefile                          platform-detecting wrapper for setup/test/cycle/generate-config/etc.
+Makefile                          platform-detecting wrapper for setup/test/generate-config/etc.
 secrets.ejson                     encrypted: { sudo_password, macos_sudo_password, proxy_*.sub_url }
 
 shared/sub_parse.py               fetch sub URL → base64-decode → parse first proxy URI → sing-box outbound dict
@@ -63,8 +63,7 @@ macos/runtime/                    gitignored: binary, generated config, rule-set
 
 windows/setup.ps1                 download → geo + rule-sets → build config → register Scheduled Task → wait TUN
 windows/teardown.ps1              stop processes, remove tasks (incl. legacy xray-proxy/xray-geodata/xray-logrotate)
-windows/test.ps1                  integration tests: -Mode all/proxy_ru/proxy_it/direct
-windows/cycle.ps1                 setup → test all → teardown → test direct
+windows/test.ps1                  full integration cycle: teardown → verify direct → setup → verify all
 windows/{add,remove}_domain.ps1   domain editor (delegates write to shared/proxies_conf.py)
 windows/generate_config.ps1       print sing-box config to stdout
 windows/update_geodata.ps1        daily geodata refresh + JSON conversion

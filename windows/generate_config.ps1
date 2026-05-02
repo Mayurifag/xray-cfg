@@ -17,8 +17,11 @@ if (-not $secrets) { Write-Error 'ejson decrypt produced empty output.'; exit 1 
 $pyArgs = @(
     (Join-Path $RepoRoot 'shared\build_config.py'),
     $ProxiesConf,
-    $secrets,
     $RuleSetDir,
-    '--interface-name', $TunAdapterName
+    '--interface-name', $TunAdapterName,
+    '--log-output', $SingboxLog
 )
-Invoke-Python -Arguments $pyArgs
+$py = Get-PythonExe
+$global:LASTEXITCODE = 0
+$secrets | & $py.Exe @($py.PrefixArgs + $pyArgs)
+if ($LASTEXITCODE -ne 0) { throw "build_config.py exit $LASTEXITCODE" }

@@ -183,6 +183,13 @@ def main() -> int:
 
     os.makedirs(args.out_dir, exist_ok=True)
 
+    expected = {f'geosite-{c.lower()}.json' for c in args.geosite} | \
+               {f'geoip-{c.lower()}.json' for c in args.geoip}
+    for fname in os.listdir(args.out_dir):
+        if (fname.startswith('geosite-') or fname.startswith('geoip-')) and \
+                fname.endswith('.json') and fname not in expected:
+            os.remove(os.path.join(args.out_dir, fname))
+
     if args.geosite:
         sites = parse_geosite(args.geosite_dat)
         for cat in args.geosite:

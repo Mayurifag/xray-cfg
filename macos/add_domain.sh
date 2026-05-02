@@ -2,5 +2,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source macos/common.sh
-export RESTART_HOOK=restart_proxy
-exec bash shared/add_domain.sh "$@"
+RESTART_HOOK=restart_proxy
+source shared/add_domain.sh "$@"

@@ -62,4 +62,49 @@ RESOLVED=$(eval "$DNS_CHECK_CMD")
 [[ -n "$RESOLVED" ]] || { echo "FAIL: DNS sanity check returned empty" >&2; exit 1; }
 echo "  checkip.amazonaws.com -> $RESOLVED"
 
+echo '=== Verify: rule-set integrity ==='
+expected=$(python3 - <<'PY'
+import os, sys
+sys.path.insert(0, 'shared')
+from proxies_conf import all_of_kind, load
+d = load('proxies.conf')
+for c in all_of_kind(d, 'geosites'): print(f'geosite-{c}.json')
+for c in all_of_kind(d, 'geoips'):   print(f'geoip-{c}.json')
+PY
+)
+actual=$(cd "$RULE_SET_DIR" 2>/dev/null && ls -1 2>/dev/null | sort)
+expected_sorted=$(echo "$expected" | sort)
+diff_out=$(diff <(echo "$expected_sorted") <(echo "$actual") || true)
+[[ -z "$diff_out" ]] || { echo "FAIL: rule-set dir mismatch:" >&2; echo "$diff_out" >&2; exit 1; }
+for f in $expected; do
+    [[ -s "$RULE_SET_DIR/$f" ]] || { echo "FAIL: $RULE_SET_DIR/$f empty" >&2; exit 1; }
+done
+echo "  $(echo "$expected" | wc -l | tr -d ' ') rule-sets match proxies.conf"
+
+echo '=== Verify: no IPv6 leak ==='
+v6=$(curl -6 -s --max-time 3 https://api64.ipify.org 2>/dev/null || true)
+[[ -z "$v6" ]] || { echo "FAIL: IPv6 leak: $v6" >&2; exit 1; }
+echo '  no IPv6 egress (IPv4-only constraint holds)'
+
+if [[ -n "${ADD_DOMAIN:-}" && -n "${REMOVE_DOMAIN:-}" ]]; then
+    echo '=== Verify: add-domain round-trip ==='
+    RT_DOMAIN=httpbin.org
+    RT_BEFORE=$(curl -s --max-time 10 https://$RT_DOMAIN/ip | python3 -c 'import json,sys;print(json.load(sys.stdin)["origin"])' 2>/dev/null || true)
+    [[ -n "$RT_BEFORE" ]] || { echo "FAIL: $RT_DOMAIN unreachable pre-add" >&2; exit 1; }
+    NO_GIT=1 $ADD_DOMAIN "$RT_DOMAIN" proxy_it
+    sleep 3
+    RT_AFTER=$(curl -s --max-time 10 https://$RT_DOMAIN/ip | python3 -c 'import json,sys;print(json.load(sys.stdin)["origin"])' 2>/dev/null || true)
+    NO_GIT=1 $REMOVE_DOMAIN "$RT_DOMAIN"
+    [[ -n "$RT_AFTER" ]] || { echo "FAIL: $RT_DOMAIN unreachable post-add" >&2; exit 1; }
+    [[ "$RT_AFTER" == "$IT" ]] || { echo "FAIL: $RT_DOMAIN ($RT_AFTER) != proxy_it ($IT)" >&2; exit 1; }
+    echo "  $RT_DOMAIN routed via proxy_it after add"
+fi
+
+if [[ -n "${SINGBOX_LOG:-}" && -f "$SINGBOX_LOG" ]]; then
+    echo '=== Verify: log scan ==='
+    suspicious=$(grep -E -i 'WARN|FATAL|panic' "$SINGBOX_LOG" || true)
+    [[ -z "$suspicious" ]] || { echo "FAIL: log issues:" >&2; echo "$suspicious" >&2; exit 1; }
+    echo '  log clean'
+fi
+
 echo '=== PASS ==='

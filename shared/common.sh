@@ -28,6 +28,7 @@ generate_singbox_config() {
 }
 
 git_pull_if_clean() {
+    [[ -n "${NO_GIT:-}" ]] && return 0
     local branch default unpushed
     branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || return 0
     default=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||') || return 0
@@ -38,6 +39,7 @@ git_pull_if_clean() {
 }
 
 git_commit_and_push() {
+    [[ -n "${NO_GIT:-}" ]] && return 0
     git add "$PROXIES_CONF"
     if ! git diff --cached --quiet; then
         git commit -m "$1"

@@ -18,7 +18,7 @@ LABELS=(com.proxies-cfg.singbox com.proxies-cfg.geodata)
 # Cleaned up by teardown if present.
 LEGACY_LABELS=(com.xray-cfg.singbox com.xray-cfg.geodata com.xray-cfg.xray com.xray-cfg.logrotate)
 
-export RULE_SET_DIR GEODATA_DIR
+export RULE_SET_DIR GEODATA_DIR SINGBOX_LOG
 
 assert_root() {
     if [[ $EUID -ne 0 ]]; then

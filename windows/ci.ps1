@@ -3,7 +3,7 @@
 .SYNOPSIS
     Lightweight CI for Windows: PowerShell parser + JSON lint.
 .DESCRIPTION
-    Heavy e2e lives in `make cycle` / `make test` and requires admin + network.
+    Heavy e2e lives in `make test` and requires admin + network.
     Mirrors macos/ci.sh.
 #>
 . "$PSScriptRoot\common.ps1"
@@ -47,4 +47,4 @@ if ($failed -gt 0) {
     exit 1
 }
 
-Write-Output 'windows ci: PowerShell parse + JSON + proxies.conf pass (run `make cycle` for full e2e)'
+Write-Output 'windows ci: PowerShell parse + JSON + proxies.conf pass (run `make test` for full e2e)'

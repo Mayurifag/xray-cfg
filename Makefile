@@ -1,4 +1,4 @@
-.PHONY: ci setup teardown restart test cycle status logs flush-dns update-geodata add-domain remove-domain generate-config
+.PHONY: ci setup teardown restart test status logs flush-dns update-geodata add-domain remove-domain generate-config
 
 # ── platform detection ────────────────────────────────────────────────────────
 ifeq ($(OS),Windows_NT)
@@ -6,8 +6,7 @@ ifeq ($(OS),Windows_NT)
 
   cmd_setup        := $(PS) windows/setup.ps1
   cmd_teardown     := $(PS) windows/teardown.ps1
-  cmd_test         := $(PS) windows/test.ps1 -Mode all
-  cmd_cycle        := $(PS) windows/cycle.ps1
+  cmd_test         := $(PS) windows/test.ps1
   cmd_status       := $(PS) windows/status.ps1
   cmd_logs         := $(PS) windows/logs.ps1
   cmd_flush_dns    := $(PS) windows/flush_dns.ps1
@@ -56,15 +55,6 @@ restart: teardown setup
 
 test:
 	$(cmd_test)
-
-# Linux/macOS test.sh already does teardown→verify→setup→verify; cycle == test.
-# Windows is mode-driven; cycle.ps1 wraps setup→test→teardown→test direct.
-ifeq ($(OS),Windows_NT)
-cycle:
-	$(cmd_cycle)
-else
-cycle: test
-endif
 
 status:
 	$(cmd_status)

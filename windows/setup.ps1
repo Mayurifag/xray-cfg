@@ -31,26 +31,8 @@ if ($Boot) {
     }
 }
 
-Write-Phase 'setup' 'Phase 1: download sing-box-extended'
-
-$ZipUrl  = "https://github.com/$SingboxRepo/releases/download/v$SingboxVersion/sing-box-$SingboxVersion-windows-amd64.zip"
-$ZipPath = Join-Path $RuntimeDir "sing-box-$SingboxVersion-windows-amd64.zip"
-
-if (-not (Test-Path $SingboxExe)) {
-    if (-not (Test-Path $ZipPath) -or (Get-Item $ZipPath).Length -lt 1MB) {
-        Write-Phase 'setup' "downloading $ZipUrl"
-        Invoke-WebRequest -Uri $ZipUrl -OutFile $ZipPath -UseBasicParsing
-    }
-    Write-Phase 'setup' "extracting to $SingboxDir"
-    Expand-Archive -Path $ZipPath -DestinationPath $SingboxDir -Force
-    # extracted as sing-box-<ver>-windows-amd64\sing-box.exe — flatten
-    $nested = Join-Path $SingboxDir "sing-box-$SingboxVersion-windows-amd64"
-    if (Test-Path (Join-Path $nested 'sing-box.exe')) {
-        Get-ChildItem $nested | Move-Item -Destination $SingboxDir -Force
-        Remove-Item $nested -Recurse -Force
-    }
-    if (-not (Test-Path $SingboxExe)) { Write-Error "sing-box.exe missing after extract"; exit 1 }
-}
+Write-Phase 'setup' 'Phase 1: ensure sing-box-extended binary'
+Install-Singbox
 
 Write-Phase 'setup' 'Phase 2: geodata + rule-sets'
 & "$PSScriptRoot\update_geodata.ps1"

@@ -10,6 +10,7 @@ $Script:RuntimeDir = Join-Path $PSScriptRoot 'runtime'
 $Script:SingboxDir = Join-Path $RuntimeDir 'bin'
 $Script:SingboxExe = Join-Path $SingboxDir 'sing-box.exe'
 $Script:SingboxConfig = Join-Path $RuntimeDir 'config.json'
+$Script:SingboxLog = Join-Path $RuntimeDir 'singbox.log'
 $Script:RuleSetDir = Join-Path $RuntimeDir 'rule-sets'
 $Script:GeodataDir = Join-Path $RuntimeDir 'geodata'
 $Script:ProxiesConf = Join-Path $RepoRoot 'proxies.conf'
@@ -17,6 +18,7 @@ $Script:SecretsFile = Join-Path $RepoRoot 'secrets.ejson'
 $Script:TaskNameSingbox = 'proxies-cfg-singbox'
 $Script:TaskNameGeodata = 'proxies-cfg-geodata'
 $Script:TunAdapterName = 'singbox_tun'
+$Script:_PythonExeCache = $null
 
 function Assert-Admin {
     $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -32,16 +34,13 @@ function Write-Phase {
 }
 
 function Get-PythonExe {
-    if (Get-Variable -Name '_PythonExeCache' -Scope Script -ErrorAction SilentlyContinue) {
-        return $Script:_PythonExeCache
-    }
+    if ($null -ne $Script:_PythonExeCache) { return $Script:_PythonExeCache }
     foreach ($name in @('python3', 'python', 'py')) {
         $candidates = Get-Command $name -ErrorAction SilentlyContinue -All
         if (-not $candidates) { continue }
         foreach ($cmd in $candidates) {
             if ($cmd.Source -match '\\WindowsApps\\') { continue }
             if ($cmd.Source -notmatch '\.exe$') { continue }
-            if (-not (Test-Path $cmd.Source) -or (Get-Item $cmd.Source).Length -lt 1024) { continue }
             $prefix = if ($cmd.Name -eq 'py' -or $cmd.Name -eq 'py.exe') { @('-3') } else { @() }
             $Script:_PythonExeCache = @{ Exe = $cmd.Source; PrefixArgs = $prefix }
             return $Script:_PythonExeCache
@@ -62,13 +61,30 @@ function Invoke-Python {
     return $output
 }
 
+function Install-Singbox {
+    if (Test-Path $SingboxExe) { return }
+    foreach ($d in $RuntimeDir, $SingboxDir) {
+        if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d | Out-Null }
+    }
+    $zipUrl  = "https://github.com/$SingboxRepo/releases/download/v$SingboxVersion/sing-box-$SingboxVersion-windows-amd64.zip"
+    $zipPath = Join-Path $RuntimeDir "sing-box-$SingboxVersion-windows-amd64.zip"
+    if (-not (Test-Path $zipPath) -or (Get-Item $zipPath).Length -lt 1MB) {
+        Write-Phase 'install_singbox' "downloading $zipUrl"
+        Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
+    }
+    Write-Phase 'install_singbox' "extracting to $SingboxDir"
+    Expand-Archive -Path $zipPath -DestinationPath $SingboxDir -Force
+    $nested = Join-Path $SingboxDir "sing-box-$SingboxVersion-windows-amd64"
+    if (Test-Path (Join-Path $nested 'sing-box.exe')) {
+        Get-ChildItem $nested | Move-Item -Destination $SingboxDir -Force
+        Remove-Item $nested -Recurse -Force
+    }
+    if (-not (Test-Path $SingboxExe)) { Write-Error 'sing-box.exe missing after extract'; exit 1 }
+}
+
 function Build-SingboxConfig {
     if (-not (Test-Path $RuntimeDir)) { New-Item -ItemType Directory -Path $RuntimeDir | Out-Null }
     $json = (& "$PSScriptRoot\generate_config.ps1") -join "`n"
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error 'generate_config.ps1 failed.'
-        exit 1
-    }
     [System.IO.File]::WriteAllText($SingboxConfig, $json, (New-Object System.Text.UTF8Encoding $false))
 }
 
@@ -88,6 +104,7 @@ function Format-Domain {
 
 function Invoke-GitPullIfClean {
     param([string]$Path = $RepoRoot)
+    if ($env:NO_GIT) { return }
     Push-Location $Path
     try {
         $branch  = git rev-parse --abbrev-ref HEAD 2>$null
@@ -105,6 +122,7 @@ function Invoke-GitPullIfClean {
 
 function Invoke-GitCommitAndPush {
     param([string]$CommitMessage, [string]$Path = $RepoRoot)
+    if ($env:NO_GIT) { return }
     Push-Location $Path
     try {
         git add proxies.conf

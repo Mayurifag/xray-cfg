@@ -40,11 +40,11 @@ All three are anti-detection polish, not auth — connections still succeed.
 
 ## Prerequisites
 
-| OS      | Required                                                                         |
-| ------- | -------------------------------------------------------------------------------- |
-| Linux   | `ejson`, `python3` (3.9+), `curl`, `systemd`                                     |
-| macOS   | `ejson`, `python3`, brew `curl` for HTTP/3 tests                                 |
-| Windows | `ejson`, Python 3.9+ in `PATH`, `make`                                           |
+| OS      | Required                                         |
+| ------- | ------------------------------------------------ |
+| Linux   | `ejson`, `python3` (3.9+), `curl`, `systemd`     |
+| macOS   | `ejson`, `python3`, brew `curl` for HTTP/3 tests |
+| Windows | `ejson`, Python 3.9+ in `PATH`, `make`           |
 
 ### macOS: disable Touch ID for sudo (one-time)
 
@@ -61,18 +61,17 @@ Restore: `sudo cp /etc/pam.d/sudo_local.bak.proxiescfg /etc/pam.d/sudo_local`.
 
 ## Usage
 
-| Command               | Description                                |
-| --------------------- | ------------------------------------------ |
-| `make setup`          | install + start proxy                      |
-| `make teardown`       | stop + remove proxy                        |
-| `make restart`        | teardown + setup                           |
-| `make test`           | integration tests                          |
-| `make cycle`          | setup → test → teardown → verify direct    |
-| `make status`         | show proxy status                          |
-| `make logs`           | follow proxy log                           |
-| `make flush-dns`      | flush DNS cache                            |
-| `make update-geodata` | refresh runetfreedom .dat → JSON rule-sets |
-| `make generate-config`| print sing-box config to stdout (inspection) |
+| Command                | Description                                  |
+| ---------------------- | -------------------------------------------- |
+| `make setup`           | install + start proxy                        |
+| `make teardown`        | stop + remove proxy                          |
+| `make restart`         | teardown + setup                             |
+| `make test`            | full integration cycle                       |
+| `make status`          | show proxy status                            |
+| `make logs`            | follow proxy log                             |
+| `make flush-dns`       | flush DNS cache                              |
+| `make update-geodata`  | refresh runetfreedom .dat → JSON rule-sets   |
+| `make generate-config` | print sing-box config to stdout (inspection) |
 
 ## Domains
 
@@ -93,7 +92,6 @@ alias proxy-setup='make -C "$PROXIES_CFG" setup'
 alias proxy-teardown='make -C "$PROXIES_CFG" teardown'
 alias proxy-restart='make -C "$PROXIES_CFG" restart'
 alias proxy-test='make -C "$PROXIES_CFG" test'
-alias proxy-cycle='make -C "$PROXIES_CFG" cycle'
 alias proxy-status='make -C "$PROXIES_CFG" status'
 alias proxy-logs='make -C "$PROXIES_CFG" logs'
 alias proxy-flush-dns='make -C "$PROXIES_CFG" flush-dns'
@@ -112,7 +110,6 @@ function proxy-setup     { make -C $ProxiesCfg setup }
 function proxy-teardown  { make -C $ProxiesCfg teardown }
 function proxy-restart   { make -C $ProxiesCfg restart }
 function proxy-test      { make -C $ProxiesCfg test }
-function proxy-cycle     { make -C $ProxiesCfg cycle }
 function proxy-status    { make -C $ProxiesCfg status }
 function proxy-logs      { make -C $ProxiesCfg logs }
 function proxy-flush-dns { make -C $ProxiesCfg flush-dns }
@@ -133,8 +130,8 @@ function proxy-remove($d)               { proxy-rm $d }
 
 ## TODO
 
-- Verify `make cycle` on Windows.
-- Verify `make cycle` on Linux.
+- Verify `make test` on MacOS.
+- Verify `make test` on Linux.
 - Once both above are green, drop legacy `xray*` cleanup from
   `linux/teardown.sh`, `macos/common.sh` (`LEGACY_LABELS`),
   `windows/teardown.ps1` (`tasksToRemove` xray entries).
