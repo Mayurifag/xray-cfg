@@ -1,4 +1,5 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
+#Requires -PSEdition Core
 <#
 .SYNOPSIS
     Print the sing-box config (built from proxies.conf + subscriptions) to stdout.

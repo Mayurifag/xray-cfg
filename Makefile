@@ -2,7 +2,7 @@
 
 # ── platform detection ────────────────────────────────────────────────────────
 ifeq ($(OS),Windows_NT)
-  PS := powershell.exe -ExecutionPolicy Bypass -File
+  PS := pwsh.exe -ExecutionPolicy Bypass -File
 
   cmd_setup        := $(PS) windows/setup.ps1
   cmd_teardown     := $(PS) windows/teardown.ps1

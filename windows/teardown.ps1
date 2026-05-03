@@ -1,4 +1,5 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
+#Requires -PSEdition Core
 #Requires -RunAsAdministrator
 . "$PSScriptRoot\common.ps1"
 <#

@@ -1,4 +1,5 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
+#Requires -PSEdition Core
 <#
 .SYNOPSIS
     Shared helpers for Windows PS1 scripts (sing-box-extended TUN proxy).

@@ -1,4 +1,5 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
+#Requires -PSEdition Core
 <#
 .SYNOPSIS
     Lightweight CI for Windows: PowerShell parser + JSON lint.

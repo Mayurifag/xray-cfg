@@ -1,4 +1,5 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
+#Requires -PSEdition Core
 . "$PSScriptRoot\common.ps1"
 
 $tasks   = Get-ScheduledTask -TaskName $TaskNameSingbox, $TaskNameGeodata -ErrorAction SilentlyContinue

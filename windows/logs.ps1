@@ -1,4 +1,5 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
+#Requires -PSEdition Core
 . "$PSScriptRoot\common.ps1"
 
 $log = Join-Path $RuntimeDir 'singbox.log'

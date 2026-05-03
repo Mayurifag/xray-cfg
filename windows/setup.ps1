@@ -1,4 +1,5 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
+#Requires -PSEdition Core
 #Requires -RunAsAdministrator
 param([switch]$Boot)
 . "$PSScriptRoot\common.ps1"
@@ -57,8 +58,7 @@ $singboxAction  = New-ScheduledTaskAction -Execute $SingboxExe -Argument "run -c
 $singboxTrigger = New-ScheduledTaskTrigger -AtLogOn
 Register-ScheduledTask -TaskName $TaskNameSingbox -Action $singboxAction -Trigger $singboxTrigger @common | Out-Null
 
-$pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
-$geoExe = if ($pwshCmd) { $pwshCmd.Source } else { 'powershell.exe' }
+$geoExe = (Get-Command pwsh -ErrorAction Stop).Source
 $geoArgs = "-NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PSScriptRoot\update_geodata.ps1`""
 $geoAction = New-ScheduledTaskAction -Execute $geoExe -Argument $geoArgs
 $geoTrigger = New-ScheduledTaskTrigger -Daily -At '03:00'
