@@ -82,7 +82,7 @@ done
 echo "  $(echo "$expected" | wc -l | tr -d ' ') rule-sets match proxies.conf"
 
 echo '=== Verify: no IPv6 leak ==='
-v6=$(curl -6 -s --max-time 3 https://api64.ipify.org 2>/dev/null || true)
+v6=$(curl -6 -s --max-time 3 https://api6.ipify.org 2>/dev/null || true)
 [[ -z "$v6" ]] || { echo "FAIL: IPv6 leak: $v6" >&2; exit 1; }
 echo '  no IPv6 egress (IPv4-only constraint holds)'
 
