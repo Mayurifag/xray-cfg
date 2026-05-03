@@ -1,2 +1,5 @@
 #!/bin/bash
-exec sudo resolvectl flush-caches
+cd "$(dirname "$0")/.."
+source linux/common.sh
+assert_root "$@"
+exec resolvectl flush-caches
