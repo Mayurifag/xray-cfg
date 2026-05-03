@@ -131,7 +131,6 @@ function proxy-remove($d)               { proxy-rm $d }
 ## TODO
 
 - Verify `make test` on MacOS.
-- Verify `make test` on Windows
 - Run prompt below
 - Rename to `proxies-cfg` on github
 - Move to `proxies-cfg` folder/repo name with prompt. 
@@ -142,15 +141,16 @@ Goal: verify proxy works, rename dir to proxies-cfg, sync git, verify again.
 
 Steps (run in order, stop on failure):
 
+0. czcd, run claude (has to be run outside of folder + close other stuff)
 1. cd into xray-cfg
 2. make test          # baseline must pass
 3. make teardown
 4. cd .. && mv xray-cfg proxies-cfg   # Windows: Rename-Item
 5. cd proxies-cfg
-6. git remote get-url origin | sed 's|xray-cfg|proxies-cfg|' | xargs git remote set-url origin
-# Windows PS: $u=(git remote get-url origin) -replace 'xray-cfg','proxies-cfg'; git remote set-url origin $u
-1. git fetch --all --prune && git pull --ff-only
-2. make test          # run #1
-3. make test          # run #2, confirm stable
+6. git remote get-url origin | sed 's|xray-cfg|proxies-cfg|' | xargs git remote set-url origin # Windows PS: $u=(git remote get-url origin) -replace 'xray-cfg','proxies-cfg'; git remote set-url origin $u
+7. git fetch --all --prune && git pull --ff-only
+8. make test          # run #1
+9. make test          # run #2, confirm stable
+10. Change all aliases from xray-cfg to proxies-cfg in czcd folder 
 
 Success: both final `make test` exit 0. Stop + report on any non-zero.

@@ -56,7 +56,7 @@ def dump(data: dict[str, dict[str, list[str]]], path: str) -> None:
             if not values:
                 continue
             parts.append(f'[{tag}.{kind}]\n' + '\n'.join(sorted(set(values))))
-    with open(path, 'w') as f:
+    with open(path, 'w', newline='\n') as f:
         f.write('\n\n'.join(parts) + '\n')
 
 
