@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 source macos/common.sh
 assert_root "$@"
 
-for label in "${LABELS[@]}" "${LEGACY_LABELS[@]}"; do
+for label in "${LABELS[@]}"; do
     if launchctl bootout "system/$label" 2>/dev/null; then
         echo "[teardown] booted out $label"
     fi
@@ -13,7 +13,6 @@ for label in "${LABELS[@]}" "${LEGACY_LABELS[@]}"; do
 done
 
 pkill -TERM -x sing-box 2>/dev/null || true
-pkill -TERM -x xray     2>/dev/null || true
 
 deadline=$(($(date +%s) + 10))
 while (( $(date +%s) < deadline )); do

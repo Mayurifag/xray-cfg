@@ -8,7 +8,7 @@ GEOIP_URL="https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/r
 GEOSITE_URL="https://raw.githubusercontent.com/runetfreedom/russia-blocked-geosite/release/geosite.dat"
 
 DIRECT_TEST_URL="https://checkip.amazonaws.com"
-PROXY_IT_TEST_URL="https://eth0.me"
+PROXY_IT_TEST_URL="https://api.ipify.org"
 PROXY_RU_TEST_URL="https://ident.me"
 ALL_TEST_URLS=("$DIRECT_TEST_URL" "$PROXY_IT_TEST_URL" "$PROXY_RU_TEST_URL")
 

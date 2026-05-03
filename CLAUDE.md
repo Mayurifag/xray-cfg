@@ -42,7 +42,7 @@ shared/{add,remove}_domain.sh     cross-platform domain editor (delegates write 
 shared/constants.{sh,ps1}         versions, geodata URLs, test URLs — single source of truth
 
 linux/setup.sh                    download sing-box-extended → geo + rule-sets → build config → systemd unit
-linux/teardown.sh                 stop/disable/remove unit + legacy xray cleanup
+linux/teardown.sh                 stop/disable/remove unit
 linux/test.sh                     thin wrapper that exec's shared/test_core.sh
 linux/ci.sh                       shell + python + proxies.conf parse
 linux/{add,remove}_domain.sh      thin wrappers around shared/{add,remove}_domain.sh
@@ -51,7 +51,7 @@ linux/update_geodata.sh           thin wrapper that exec's shared/update_geodata
 linux/common.sh                   linux helpers: paths, restart_proxy
 
 macos/setup.sh                    download → geo + rule-sets → build config → install LaunchDaemon → wait for utun
-macos/teardown.sh                 bootout + remove plists (incl. legacy xray + logrotate)
+macos/teardown.sh                 bootout + remove plists
 macos/test.sh                     thin wrapper that exec's shared/test_core.sh (HTTP/3 via brew curl)
 macos/ci.sh                       shell + plist + python + proxies.conf parse
 macos/{add,remove}_domain.sh      thin wrappers
@@ -62,7 +62,7 @@ macos/plists/*.plist              LaunchDaemon templates with __REPO_ROOT__ plac
 macos/runtime/                    gitignored: binary, generated config, rule-sets, geodata, logs
 
 windows/setup.ps1                 download → geo + rule-sets → build config → register Scheduled Task → wait TUN
-windows/teardown.ps1              stop processes, remove tasks (incl. legacy xray-proxy/xray-geodata/xray-logrotate)
+windows/teardown.ps1              stop processes, remove tasks
 windows/test.ps1                  full integration cycle: teardown → verify direct → setup → verify all
 windows/{add,remove}_domain.ps1   domain editor (delegates write to shared/proxies_conf.py)
 windows/generate_config.ps1       print sing-box config to stdout
@@ -99,7 +99,7 @@ config (log/dns/inbounds/sniff+hijack/final) is inlined in `build_config.py`.
 | ---------- | --------- | ------------------- | --------------------- |
 | `direct`   | direct    | Default (unmatched) | checkip.amazonaws.com |
 | `proxy_ru` | hysteria2 | Russian-only sites  | ident.me              |
-| `proxy_it` | vless+xhttp+reality | Blocked sites | eth0.me            |
+| `proxy_it` | vless+xhttp+reality | Blocked sites | api.ipify.org      |
 
 Outbound *types* and credentials are extracted from each `sub_url` — the table
 above reflects what the current servers offer; rotate the subscription and the
@@ -113,7 +113,7 @@ parsed outbound shape changes accordingly.
 | TUN MTU      | `1500`            | `shared/build_config.py` `_base_config`  | Default; lower if proxy server has smaller MTU|
 | Stack        | `mixed`           | `shared/build_config.py` `_base_config`  | gvisor userspace TCP for reliable sniff       |
 | geodata URLs | runetfreedom/*    | `shared/geodata_urls.{sh,ps1}`           | Single source of truth                        |
-| test URLs    | ident.me, eth0.me, checkip.amazonaws.com | `shared/test_urls.{sh,ps1}` | Single source of truth |
+| test URLs    | ident.me, api.ipify.org, checkip.amazonaws.com | `shared/test_urls.{sh,ps1}` | Single source of truth |
 
 ## Subscription parsing
 
@@ -175,10 +175,3 @@ before post-restart checks (already in `windows/test.ps1` direct mode).
 
 **`schtasks /query` with `$ErrorActionPreference = 'Stop'`.** Throws on
 nonzero exit. Use `Get-ScheduledTask -ErrorAction SilentlyContinue` instead.
-
-## Migration from xray-based stack
-
-Teardown scripts on every OS bootout/remove the legacy xray daemons + the
-extra logrotate task before the new sing-box-extended task is registered.
-Running `make teardown` on the old install once is enough; subsequent
-`make setup` works directly.

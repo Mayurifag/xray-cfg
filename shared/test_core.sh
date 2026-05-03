@@ -38,7 +38,7 @@ DIRECT=$(check_ip "$DIRECT_TEST_URL")
 IT=$(check_ip "$PROXY_IT_TEST_URL")
 RU=$(check_ip "$PROXY_RU_TEST_URL")
 assert_nonempty 'direct (checkip.amazonaws.com)' "$DIRECT"
-assert_nonempty 'proxy_it (eth0.me)'             "$IT"
+assert_nonempty 'proxy_it (api.ipify.org)'       "$IT"
 assert_nonempty 'proxy_ru (ident.me)'            "$RU"
 assert_ne 'direct'   "$DIRECT" 'proxy_it' "$IT"
 assert_ne 'direct'   "$DIRECT" 'proxy_ru' "$RU"
@@ -48,7 +48,7 @@ echo '=== Verify: QUIC routing ==='
 if "$CURL_HTTP3" --http3 -V >/dev/null 2>&1; then
     QUIC_IT=$("$CURL_HTTP3" -s --http3 --max-time 10 "$PROXY_IT_TEST_URL" | tr -d '[:space:]')
     QUIC_RU=$("$CURL_HTTP3" -s --http3 --max-time 10 "$PROXY_RU_TEST_URL" | tr -d '[:space:]')
-    assert_nonempty 'eth0.me QUIC'  "$QUIC_IT"
+    assert_nonempty 'api.ipify.org QUIC'  "$QUIC_IT"
     assert_nonempty 'ident.me QUIC' "$QUIC_RU"
     [[ "$QUIC_IT" == "$IT" ]] || { echo "FAIL: QUIC proxy_it ($QUIC_IT) != TLS ($IT)" >&2; exit 1; }
     [[ "$QUIC_RU" == "$RU" ]] || { echo "FAIL: QUIC proxy_ru ($QUIC_RU) != TLS ($RU)" >&2; exit 1; }

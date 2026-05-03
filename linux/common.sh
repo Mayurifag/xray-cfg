@@ -22,7 +22,7 @@ assert_root() {
         local pw script
         pw=$(ejson_decrypt_secret sudo_password)
         script="$(pwd)/$0"
-        printf '%s\n' "$pw" | sudo -S -k -p '' bash "$script" "$@"
+        printf '%s\n' "$pw" | sudo -S -k -p '' env "PATH=$PATH" bash "$script" "$@"
         exit $?
     fi
 }
@@ -31,7 +31,7 @@ restart_proxy() {
     if [[ $EUID -ne 0 ]]; then
         local pw
         pw=$(ejson_decrypt_secret sudo_password)
-        printf '%s\n' "$pw" | sudo -S -k -p '' bash -c "cd $(pwd) && source linux/common.sh && restart_proxy"
+        printf '%s\n' "$pw" | sudo -S -k -p '' env "PATH=$PATH" bash -c "cd '$(pwd)' && source linux/common.sh && restart_proxy"
         return $?
     fi
     generate_singbox_config

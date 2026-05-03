@@ -11,14 +11,9 @@ $ErrorActionPreference = 'Stop'
 Assert-Admin
 Write-Phase 'teardown' 'Phase 1: stop sing-box processes'
 Get-Process -Name 'sing-box' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Get-Process -Name 'xray'     -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 Write-Phase 'teardown' 'Phase 2: delete Scheduled Tasks'
-$tasksToRemove = @(
-    $TaskNameSingbox, $TaskNameGeodata,
-    'xray-cfg-singbox', 'xray-cfg-geodata',          # legacy (previous repo name)
-    'xray-proxy', 'xray-geodata', 'xray-logrotate'   # legacy (xray stack)
-)
+$tasksToRemove = @($TaskNameSingbox, $TaskNameGeodata)
 foreach ($name in $tasksToRemove) {
     if (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName $name -Confirm:$false
@@ -35,7 +30,7 @@ for ($i = 0; $i -lt 5; $i++) {
 
 Write-Phase 'teardown' 'Phase 4: verify clean'
 $dirty = @()
-if (Get-Process -Name 'sing-box', 'xray' -ErrorAction SilentlyContinue) { $dirty += 'process(es) still running' }
+if (Get-Process -Name 'sing-box' -ErrorAction SilentlyContinue) { $dirty += 'process(es) still running' }
 if (Get-NetAdapter -Name $TunAdapterName -ErrorAction SilentlyContinue) { $dirty += "$TunAdapterName adapter still present" }
 foreach ($name in $tasksToRemove) {
     if (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue) {

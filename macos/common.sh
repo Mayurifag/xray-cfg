@@ -15,8 +15,6 @@ GENERATE_CONFIG="macos/generate_config.sh"
 
 LAUNCH_DAEMON_DIR=/Library/LaunchDaemons
 LABELS=(com.proxies-cfg.singbox com.proxies-cfg.geodata)
-# Cleaned up by teardown if present.
-LEGACY_LABELS=(com.xray-cfg.singbox com.xray-cfg.geodata com.xray-cfg.xray com.xray-cfg.logrotate)
 
 export RULE_SET_DIR GEODATA_DIR SINGBOX_LOG
 
@@ -26,7 +24,7 @@ assert_root() {
         local pw script
         pw=$(ejson_decrypt_secret macos_sudo_password)
         script="$(pwd)/$0"
-        printf '%s\n' "$pw" | sudo -S -k -p '' bash "$script" "$@"
+        printf '%s\n' "$pw" | sudo -S -k -p '' env "PATH=$PATH" bash "$script" "$@"
         exit $?
     fi
 }
@@ -52,7 +50,7 @@ restart_proxy() {
     if [[ $EUID -ne 0 ]]; then
         local pw
         pw=$(ejson_decrypt_secret macos_sudo_password)
-        printf '%s\n' "$pw" | sudo -S -k -p '' bash -c "cd $(pwd) && source macos/common.sh && restart_proxy"
+        printf '%s\n' "$pw" | sudo -S -k -p '' env "PATH=$PATH" bash -c "cd '$(pwd)' && source macos/common.sh && restart_proxy"
         return $?
     fi
     generate_singbox_config

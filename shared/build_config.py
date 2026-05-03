@@ -24,6 +24,11 @@ import json
 import os
 import sys
 
+# auto_redirect uses nftables — Linux-only. Other platforms ignore the flag's
+# routing hop and break TCP forwarding (verified on Linux: without it, kernel
+# binds outbound sockets to the TUN address and packets never reach sing-box).
+_AUTO_REDIRECT = sys.platform == 'linux'
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sub_parse  # noqa: E402
 from proxies_conf import all_of_kind, load  # noqa: E402
@@ -33,6 +38,17 @@ def _base_config(log_output: str | None = None) -> dict:
     log = {'level': 'warn', 'timestamp': True}
     if log_output:
         log['output'] = log_output
+    tun = {
+        'type': 'tun',
+        'tag': 'tun-in',
+        'address': ['172.19.0.1/30'],
+        'mtu': 1500,
+        'auto_route': True,
+        'strict_route': True,
+        'stack': 'mixed',
+    }
+    if _AUTO_REDIRECT:
+        tun['auto_redirect'] = True
     return {
         'log': log,
         'dns': {
@@ -42,15 +58,7 @@ def _base_config(log_output: str | None = None) -> dict:
             ],
             'strategy': 'ipv4_only',
         },
-        'inbounds': [{
-            'type': 'tun',
-            'tag': 'tun-in',
-            'address': ['172.19.0.1/30'],
-            'mtu': 1500,
-            'auto_route': True,
-            'strict_route': True,
-            'stack': 'mixed',
-        }],
+        'inbounds': [tun],
         'outbounds': [{'type': 'direct', 'tag': 'direct'}],
         'route': {
             'rule_set': [],

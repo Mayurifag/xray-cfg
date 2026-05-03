@@ -7,6 +7,6 @@ $GeoipUrl   = 'https://raw.githubusercontent.com/runetfreedom/russia-blocked-geo
 $GeositeUrl = 'https://raw.githubusercontent.com/runetfreedom/russia-blocked-geosite/release/geosite.dat'
 
 $DirectTestUrl  = 'https://checkip.amazonaws.com'
-$ProxyItTestUrl = 'https://eth0.me'
+$ProxyItTestUrl = 'https://api.ipify.org'
 $ProxyRuTestUrl = 'https://ident.me'
 $AllTestUrls    = @($DirectTestUrl, $ProxyItTestUrl, $ProxyRuTestUrl)

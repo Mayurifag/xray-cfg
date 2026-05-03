@@ -41,8 +41,8 @@ Type=simple
 ExecStart=$SINGBOX_BIN_ABS run -c $SINGBOX_CONFIG_ABS
 Restart=on-failure
 RestartSec=5
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_DAC_READ_SEARCH
 NoNewPrivileges=true
 LimitNOFILE=1048576
 
