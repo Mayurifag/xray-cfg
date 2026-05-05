@@ -99,11 +99,11 @@ config (log/dns/inbounds/sniff+hijack/final) is inlined in `build_config.py`.
 
 ## Outbounds
 
-| Outbound   | Protocol  | Purpose             | Test domain           |
-| ---------- | --------- | ------------------- | --------------------- |
-| `direct`   | direct    | Default (unmatched) | checkip.amazonaws.com |
-| `proxy_ru` | hysteria2 | Russian-only sites  | ident.me              |
-| `proxy_it` | vless+xhttp+reality | Blocked sites | api.ipify.org      |
+| Outbound   | Protocol            | Purpose             | Test domain           |
+| ---------- | ------------------- | ------------------- | --------------------- |
+| `direct`   | direct              | Default (unmatched) | checkip.amazonaws.com |
+| `proxy_ru` | hysteria2           | Russian-only sites  | ident.me              |
+| `proxy_it` | vless+xhttp+reality | Blocked sites       | api.ipify.org         |
 
 Outbound *types* and credentials are extracted from each `sub_url` — the table
 above reflects what the current servers offer; rotate the subscription and the
@@ -111,24 +111,24 @@ parsed outbound shape changes accordingly.
 
 ## Cross-platform constants
 
-| Constant     | Value             | Where defined                            | Notes                                         |
-| ------------ | ----------------- | ---------------------------------------- | --------------------------------------------- |
-| TUN address  | `172.19.0.1/30`   | `shared/build_config.py` `_base_config`  | Same on all OSes; sing-box auto-assigns       |
-| TUN MTU      | `1500`            | `shared/build_config.py` `_base_config`  | Default; lower if proxy server has smaller MTU|
-| Stack        | `mixed`           | `shared/build_config.py` `_base_config`  | gvisor userspace TCP for reliable sniff       |
-| geodata URLs | runetfreedom/*    | `shared/geodata_urls.{sh,ps1}`           | Single source of truth                        |
-| test URLs    | ident.me, api.ipify.org, checkip.amazonaws.com | `shared/test_urls.{sh,ps1}` | Single source of truth |
+| Constant     | Value                                          | Where defined                           | Notes                                          |
+| ------------ | ---------------------------------------------- | --------------------------------------- | ---------------------------------------------- |
+| TUN address  | `172.19.0.1/30`                                | `shared/build_config.py` `_base_config` | Same on all OSes; sing-box auto-assigns        |
+| TUN MTU      | `1500`                                         | `shared/build_config.py` `_base_config` | Default; lower if proxy server has smaller MTU |
+| Stack        | `mixed`                                        | `shared/build_config.py` `_base_config` | gvisor userspace TCP for reliable sniff        |
+| geodata URLs | runetfreedom/*                                 | `shared/geodata_urls.{sh,ps1}`          | Single source of truth                         |
+| test URLs    | ident.me, api.ipify.org, checkip.amazonaws.com | `shared/test_urls.{sh,ps1}`             | Single source of truth                         |
 
 ## Subscription parsing
 
 `shared/sub_parse.py` understands `hysteria2://` and `vless://`. URI fields with
 no sing-box-extended schema match are dropped silently:
 
-| Dropped field   | Why                                                                      |
-| --------------- | ------------------------------------------------------------------------ |
-| `fp` (hy2)      | sing-box errors `unsupported usage for uTLS` (uTLS can't wrap QUIC)      |
-| `fm` (hy2)      | Duplicate of `obfs` UDP block                                            |
-| `spx` (vless)   | sing-box-extended Reality has no `spider_x` field                        |
+| Dropped field | Why                                                                 |
+| ------------- | ------------------------------------------------------------------- |
+| `fp` (hy2)    | sing-box errors `unsupported usage for uTLS` (uTLS can't wrap QUIC) |
+| `fm` (hy2)    | Duplicate of `obfs` UDP block                                       |
+| `spx` (vless) | sing-box-extended Reality has no `spider_x` field                   |
 
 `fp` for VLESS is kept (uTLS over TCP works); ECH config (when present in URI)
 is wrapped as PEM and passed to `tls.ech.config`. **xhttp transport requires
