@@ -23,7 +23,6 @@ import argparse
 import json
 import os
 import sys
-import urllib.parse
 
 # auto_redirect uses nftables — Linux-only. Other platforms ignore the flag's
 # routing hop and break TCP forwarding (verified on Linux: without it, kernel
@@ -88,13 +87,9 @@ def build(proxies_path: str, secrets: dict, rule_set_dir: str,
 
     proxies = load(proxies_path)
 
-    panel_hosts = sorted({
-        urllib.parse.urlparse(secrets[tag]['sub_url']).hostname
-        for tag in proxies
-        if secrets.get(tag, {}).get('sub_url')
-    })
-    if panel_hosts:
-        cfg['route']['rules'].append({'domain': panel_hosts, 'outbound': 'direct'})
+    direct_domains = sorted(set(secrets.get('direct_domains', [])))
+    if direct_domains:
+        cfg['route']['rules'].append({'domain_suffix': direct_domains, 'outbound': 'direct'})
 
     all_tags = (
         [f'geosite-{c}' for c in all_of_kind(proxies, 'geosites')]
