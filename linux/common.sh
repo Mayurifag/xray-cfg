@@ -16,24 +16,8 @@ SERVICE_NAME=proxies-cfg-singbox
 
 export RULE_SET_DIR GEODATA_DIR SINGBOX_LOG
 
-assert_root() {
-    if [[ $EUID -ne 0 ]]; then
-        echo "[linux] re-exec under sudo (using sudo_password from secrets.ejson)" >&2
-        local pw script
-        pw=$(ejson_decrypt_secret sudo_password)
-        script="$(pwd)/$0"
-        printf '%s\n' "$pw" | sudo -S -k -p '' env "PATH=$PATH" bash "$script" "$@"
-        exit $?
-    fi
-}
-
 restart_proxy() {
-    if [[ $EUID -ne 0 ]]; then
-        local pw
-        pw=$(ejson_decrypt_secret sudo_password)
-        printf '%s\n' "$pw" | sudo -S -k -p '' env "PATH=$PATH" bash -c "cd '$(pwd)' && source linux/common.sh && restart_proxy"
-        return $?
-    fi
+    if [[ $EUID -ne 0 ]]; then elevate_and_run restart_proxy; return $?; fi
     generate_singbox_config
     systemctl restart "$SERVICE_NAME"
 }

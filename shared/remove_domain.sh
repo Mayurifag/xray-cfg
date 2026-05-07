@@ -11,7 +11,7 @@ DOMAIN=${1:-}
 [[ -n "$DOMAIN" ]] || read -rp 'Enter domain to remove: ' DOMAIN
 DOMAIN=$(format_domain "$DOMAIN")
 
-python3 shared/proxies_conf.py remove-domain "$DOMAIN" "$PROXIES_CONF"
+uv run --quiet python shared/proxies_conf.py remove-domain "$DOMAIN" "$PROXIES_CONF"
 git_commit_and_push "chore(routing): remove $DOMAIN"
 
 "$RESTART_HOOK"

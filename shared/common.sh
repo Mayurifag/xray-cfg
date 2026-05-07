@@ -2,8 +2,32 @@
 # Sourced by every bash script. Caller must `cd` to the repo root first.
 
 PROXIES_CONF=proxies.conf
-SECRETS_FILE=secrets.ejson
+SECRETS_FILE=secrets.json
 export PROXIES_CONF SECRETS_FILE
+
+ensure_unlocked() {
+    local f
+    for f in "$SECRETS_FILE" "$PROXIES_CONF"; do
+        [[ -f "$f" ]] || continue
+        # \0GITCRYPT\0 magic = 10 bytes. Bash strips embedded nulls,
+        # so match the printable middle via grep -aF.
+        head -c10 "$f" 2>/dev/null | grep -aqF GITCRYPT || continue
+        command -v git-crypt >/dev/null || {
+            echo "Error: $f is git-crypt-locked and git-crypt is not installed." >&2
+            exit 1
+        }
+        echo "[common] git-crypt locked → running 'git-crypt unlock'" >&2
+        git-crypt unlock || {
+            echo "Error: 'git-crypt unlock' failed (working tree dirty? gpg agent?)." >&2
+            exit 1
+        }
+        return 0
+    done
+}
+
+# Skip under sudo re-exec: user side already unlocked, and the gpg-agent
+# socket is not reliably available to root.
+[[ $EUID -eq 0 ]] || ensure_unlocked
 
 format_domain() {
     local d="$1"
@@ -13,13 +37,30 @@ format_domain() {
     echo "${d%%/*}"
 }
 
-ejson_decrypt_secret() {
+read_secret() {
     local key="$1"
-    command -v ejson >/dev/null || { echo 'Error: ejson required.' >&2; exit 1; }
-    ejson decrypt "$SECRETS_FILE" | python3 -c '
-import sys, json
-sys.stdout.write(json.load(sys.stdin)[sys.argv[1]])
-' "$key"
+    [[ -f "$SECRETS_FILE" ]] || { echo "Error: $SECRETS_FILE missing — run 'git-crypt unlock'." >&2; exit 1; }
+    command -v jq >/dev/null || { echo 'Error: jq required.' >&2; exit 1; }
+    jq -er --arg k "$key" '.[$k]' "$SECRETS_FILE"
+}
+
+assert_root() {
+    if [[ $EUID -ne 0 ]]; then
+        : "${OS_TAG:?}" "${SUDO_KEY:?}"
+        echo "[$OS_TAG] re-exec under sudo (using $SUDO_KEY from $SECRETS_FILE)" >&2
+        local pw script
+        pw=$(read_secret "$SUDO_KEY")
+        script="$(pwd)/$0"
+        printf '%s\n' "$pw" | sudo -S -k -p '' env "PATH=$PATH" bash "$script" "$@"
+        exit $?
+    fi
+}
+
+elevate_and_run() {
+    : "${SUDO_KEY:?}" "${OS_COMMON:?}"
+    local pw
+    pw=$(read_secret "$SUDO_KEY")
+    printf '%s\n' "$pw" | sudo -S -k -p '' env "PATH=$PATH" bash -c "cd '$(pwd)' && source '$OS_COMMON' && $1"
 }
 
 generate_singbox_config() {

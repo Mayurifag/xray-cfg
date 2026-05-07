@@ -15,11 +15,34 @@ $Script:SingboxLog = Join-Path $RuntimeDir 'singbox.log'
 $Script:RuleSetDir = Join-Path $RuntimeDir 'rule-sets'
 $Script:GeodataDir = Join-Path $RuntimeDir 'geodata'
 $Script:ProxiesConf = Join-Path $RepoRoot 'proxies.conf'
-$Script:SecretsFile = Join-Path $RepoRoot 'secrets.ejson'
+$Script:SecretsFile = Join-Path $RepoRoot 'secrets.json'
 $Script:TaskNameSingbox = 'proxies-cfg-singbox'
 $Script:TaskNameGeodata = 'proxies-cfg-geodata'
 $Script:TunAdapterName = 'singbox_tun'
-$Script:_PythonExeCache = $null
+
+function Assert-Unlocked {
+    foreach ($f in @($SecretsFile, $ProxiesConf)) {
+        if (-not (Test-Path $f)) { continue }
+        $magic = [byte[]](Get-Content $f -AsByteStream -TotalCount 10 -ErrorAction SilentlyContinue)
+        if (-not ($magic -and $magic.Length -ge 10 -and $magic[0] -eq 0 -and
+                  ([System.Text.Encoding]::ASCII.GetString($magic[1..8]) -eq 'GITCRYPT'))) {
+            continue
+        }
+        if (-not (Get-Command git-crypt -ErrorAction SilentlyContinue)) {
+            Write-Error "$f is git-crypt-locked and git-crypt is not installed."
+            exit 1
+        }
+        Write-Host "[common] git-crypt locked -> running 'git-crypt unlock'" -ForegroundColor Yellow
+        Push-Location $RepoRoot
+        try { & git-crypt unlock } finally { Pop-Location }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "'git-crypt unlock' failed (working tree dirty? gpg agent?)."
+            exit 1
+        }
+        return
+    }
+}
+Assert-Unlocked
 
 function Assert-Admin {
     $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -34,28 +57,16 @@ function Write-Phase {
     Write-Host "[$Script] $Message" -ForegroundColor $Color
 }
 
-function Get-PythonExe {
-    if ($null -ne $Script:_PythonExeCache) { return $Script:_PythonExeCache }
-    foreach ($name in @('python3', 'python', 'py')) {
-        $candidates = Get-Command $name -ErrorAction SilentlyContinue -All
-        if (-not $candidates) { continue }
-        foreach ($cmd in $candidates) {
-            if ($cmd.Source -match '\\WindowsApps\\') { continue }
-            if ($cmd.Source -notmatch '\.exe$') { continue }
-            $prefix = if ($cmd.Name -eq 'py' -or $cmd.Name -eq 'py.exe') { @('-3') } else { @() }
-            $Script:_PythonExeCache = @{ Exe = $cmd.Source; PrefixArgs = $prefix }
-            return $Script:_PythonExeCache
-        }
-    }
-    Write-Error 'Python 3 not found. Install Python 3.9+ (real interpreter, not the MS Store stub).'
-    exit 1
-}
-
 function Invoke-Python {
     param([Parameter(Mandatory)][string[]]$Arguments)
-    $py = Get-PythonExe
+    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+        throw 'uv not found. Install via `winget install astral-sh.uv`.'
+    }
     $global:LASTEXITCODE = 0
-    $output = & $py.Exe @($py.PrefixArgs + $Arguments)
+    Push-Location $RepoRoot
+    try {
+        $output = & uv run --quiet python @Arguments
+    } finally { Pop-Location }
     if ($LASTEXITCODE -ne 0) {
         throw "Python failed (exit $LASTEXITCODE): $($Arguments -join ' ')"
     }

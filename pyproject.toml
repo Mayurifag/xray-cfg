@@ -1,0 +1,19 @@
+[project]
+name = "proxies-cfg"
+version = "0.1.0"
+description = "TUN-based transparent proxy driven by sing-box-extended subscriptions."
+requires-python = ">=3.14"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15",
+]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",  # ruff-recommended: conflicts with formatter
+    "D",       # docstrings not required for these CLI scripts
+    "T201",    # print is the output channel for these CLIs
+    "PLR2004", # protobuf wire types / well-known consts read fine inline
+]

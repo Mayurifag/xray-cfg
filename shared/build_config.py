@@ -6,9 +6,10 @@ Usage:
         [--interface-name NAME] [--log-output PATH]
 
 Reads proxies.conf for routing source-of-truth, expands rule_set + route.rules,
-fetches each `<tag>.sub_url` from the decrypted secrets dict (read from
+fetches each non-direct `<tag>.sub_url` from the secrets dict (read from
 stdin), parses the URI via sub_parse, and appends the resulting outbounds.
-Sub fetch failure is fatal.
+Sub fetch failure is fatal. The reserved tag `direct` routes via the built-in
+direct outbound and needs no sub_url.
 
 Secrets come via stdin so multi-line JSON survives PowerShell 5.1 native
 arg passing (which mangles arg-borne quotes).
@@ -17,117 +18,153 @@ Static base config (log/dns/inbounds/sniff+hijack rules/final/etc.) is inlined
 below — single source of truth. `--interface-name` pins the TUN adapter name
 (Windows uses `singbox_tun` so teardown can find it; other OSes auto-name).
 """
+
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sub_parse
+from proxies_conf import all_of_kind, load
 
 # auto_redirect uses nftables — Linux-only. Other platforms ignore the flag's
 # routing hop and break TCP forwarding (verified on Linux: without it, kernel
 # binds outbound sockets to the TUN address and packets never reach sing-box).
-_AUTO_REDIRECT = sys.platform == 'linux'
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import sub_parse  # noqa: E402
-from proxies_conf import all_of_kind, load  # noqa: E402
+_AUTO_REDIRECT = sys.platform == "linux"
 
 
 def _base_config(log_output: str | None = None) -> dict:
-    log = {'level': 'warn', 'timestamp': True}
+    log = {"level": "warn", "timestamp": True}
     if log_output:
-        log['output'] = log_output
+        log["output"] = log_output
     tun = {
-        'type': 'tun',
-        'tag': 'tun-in',
-        'address': ['172.19.0.1/30'],
-        'mtu': 1500,
-        'auto_route': True,
-        'strict_route': True,
-        'stack': 'mixed',
+        "type": "tun",
+        "tag": "tun-in",
+        "address": ["172.19.0.1/30"],
+        "mtu": 1500,
+        "auto_route": True,
+        "strict_route": True,
+        "stack": "mixed",
     }
     if _AUTO_REDIRECT:
-        tun['auto_redirect'] = True
+        tun["auto_redirect"] = True
     return {
-        'log': log,
-        'dns': {
-            'servers': [
-                {'type': 'https', 'tag': 'doh-cf', 'server': '1.1.1.1'},
-                {'type': 'https', 'tag': 'doh-google', 'server': '8.8.8.8'},
+        "log": log,
+        "dns": {
+            "servers": [
+                {"type": "https", "tag": "doh-cf", "server": "1.1.1.1"},
+                {"type": "https", "tag": "doh-google", "server": "8.8.8.8"},
             ],
-            'strategy': 'ipv4_only',
+            "strategy": "ipv4_only",
         },
-        'inbounds': [tun],
-        'outbounds': [{'type': 'direct', 'tag': 'direct'}],
-        'route': {
-            'rule_set': [],
-            'rules': [
-                {'action': 'sniff'},
-                {'protocol': 'dns', 'action': 'hijack-dns'},
+        "inbounds": [tun],
+        "outbounds": [{"type": "direct", "tag": "direct"}],
+        "route": {
+            "rule_set": [],
+            "rules": [
+                {"action": "sniff"},
+                {"protocol": "dns", "action": "hijack-dns"},
             ],
-            'final': 'direct',
-            'auto_detect_interface': True,
-            'default_domain_resolver': 'doh-cf',
+            "final": "direct",
+            "auto_detect_interface": True,
+            "default_domain_resolver": "doh-cf",
         },
     }
 
 
 def _geo_tags(kinds: dict) -> list[str]:
-    return [f'geosite-{c}' for c in sorted(set(kinds.get('geosites', [])))] + \
-           [f'geoip-{c}' for c in sorted(set(kinds.get('geoips', [])))]
+    return [f"geosite-{c}" for c in sorted(set(kinds.get("geosites", [])))] + [
+        f"geoip-{c}" for c in sorted(set(kinds.get("geoips", [])))
+    ]
 
 
-def build(proxies_path: str, secrets: dict, rule_set_dir: str,
-          interface_name: str | None = None,
-          log_output: str | None = None) -> dict:
+def _missing_sub_urls(proxies: dict, secrets: dict) -> list[str]:
+    missing = []
+    for t in proxies:
+        if t == "direct":
+            continue
+        entry = secrets.get(t)
+        if not isinstance(entry, dict) or "sub_url" not in entry:
+            missing.append(t)
+    return missing
+
+
+def _route_rules(proxies: dict) -> list[dict]:
+    # `direct` first so VPS hosts / panel domains bypass overlapping
+    # geosite/geoip rules from proxy tags.
+    rules: list[dict] = []
+    for tag in sorted(proxies, key=lambda t: (t != "direct", t)):
+        kinds = proxies[tag]
+        domains = sorted(set(kinds.get("domains", [])))
+        if domains:
+            rules.append({"domain_suffix": domains, "outbound": tag})
+        rs = _geo_tags(kinds)
+        if rs:
+            rules.append({"rule_set": rs, "outbound": tag})
+    return rules
+
+
+def build(
+    proxies_path: str,
+    secrets: dict,
+    rule_set_dir: str,
+    interface_name: str | None = None,
+    log_output: str | None = None,
+) -> dict:
     cfg = _base_config(log_output)
     if interface_name:
-        cfg['inbounds'][0]['interface_name'] = interface_name
+        cfg["inbounds"][0]["interface_name"] = interface_name
 
     proxies = load(proxies_path)
 
-    direct_domains = sorted(set(secrets.get('direct_domains', [])))
-    if direct_domains:
-        cfg['route']['rules'].append({'domain_suffix': direct_domains, 'outbound': 'direct'})
+    missing = _missing_sub_urls(proxies, secrets)
+    if missing:
+        msg = f"secrets.json missing sub_url for proxies.conf tag(s): {missing}"
+        raise SystemExit(msg)
 
-    all_tags = (
-        [f'geosite-{c}' for c in all_of_kind(proxies, 'geosites')]
-        + [f'geoip-{c}' for c in all_of_kind(proxies, 'geoips')]
-    )
-    cfg['route']['rule_set'] = [
-        {'type': 'local', 'tag': t, 'format': 'source',
-         'path': f'{rule_set_dir}/{t}.json'}
+    all_tags = [f"geosite-{c}" for c in all_of_kind(proxies, "geosites")] + [
+        f"geoip-{c}" for c in all_of_kind(proxies, "geoips")
+    ]
+    cfg["route"]["rule_set"] = [
+        {
+            "type": "local",
+            "tag": t,
+            "format": "source",
+            "path": f"{rule_set_dir}/{t}.json",
+        }
         for t in sorted(all_tags)
     ]
+    cfg["route"]["rules"].extend(_route_rules(proxies))
 
-    for tag, kinds in proxies.items():
-        domains = sorted(set(kinds.get('domains', [])))
-        if domains:
-            cfg['route']['rules'].append({'domain': domains, 'outbound': tag})
-        rs = _geo_tags(kinds)
-        if rs:
-            cfg['route']['rules'].append({'rule_set': rs, 'outbound': tag})
-
-    for tag in proxies:
-        cfg['outbounds'].append(sub_parse.fetch_outbound(secrets[tag]['sub_url'], tag))
+    for tag in sorted(proxies):
+        if tag == "direct":
+            continue
+        cfg["outbounds"].append(sub_parse.fetch_outbound(secrets[tag]["sub_url"], tag))
 
     return cfg
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description='Reads secrets JSON from stdin.')
-    p.add_argument('proxies_conf')
-    p.add_argument('rule_set_dir')
-    p.add_argument('--interface-name', default=None)
-    p.add_argument('--log-output', default=None)
+    p = argparse.ArgumentParser(description="Reads secrets JSON from stdin.")
+    p.add_argument("proxies_conf")
+    p.add_argument("rule_set_dir")
+    p.add_argument("--interface-name", default=None)
+    p.add_argument("--log-output", default=None)
     args = p.parse_args()
     secrets = json.load(sys.stdin)
-    cfg = build(args.proxies_conf, secrets, args.rule_set_dir,
-                args.interface_name, args.log_output)
+    cfg = build(
+        args.proxies_conf,
+        secrets,
+        args.rule_set_dir,
+        args.interface_name,
+        args.log_output,
+    )
     json.dump(cfg, sys.stdout, indent=2)
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

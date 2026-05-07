@@ -8,12 +8,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if (-not (Get-Command ejson -ErrorAction SilentlyContinue)) {
-    Write-Error 'ejson not found in PATH.'
+if (-not (Test-Path $SecretsFile)) {
+    Write-Error "$SecretsFile missing — run 'git-crypt unlock'."
     exit 1
 }
-$secrets = (& ejson decrypt $SecretsFile | Out-String).Trim()
-if (-not $secrets) { Write-Error 'ejson decrypt produced empty output.'; exit 1 }
 
 $pyArgs = @(
     (Join-Path $RepoRoot 'shared\build_config.py'),
@@ -22,7 +20,9 @@ $pyArgs = @(
     '--interface-name', $TunAdapterName,
     '--log-output', $SingboxLog
 )
-$py = Get-PythonExe
 $global:LASTEXITCODE = 0
-$secrets | & $py.Exe @($py.PrefixArgs + $pyArgs)
+Push-Location $RepoRoot
+try {
+    Get-Content -Raw $SecretsFile | & uv run --quiet python @pyArgs
+} finally { Pop-Location }
 if ($LASTEXITCODE -ne 0) { throw "build_config.py exit $LASTEXITCODE" }

@@ -14,65 +14,54 @@ existing local binary when offline). Version is tracked in
 Only comment non-obvious behaviour — things that would surprise a reader who
 understands the language and tools.
 
-## Authentication
+## Secrets
 
-**Linux:** Sudo password stored in `secrets.ejson`. Retrieve:
-```sh
-ejson decrypt secrets.ejson | python3 -c "import sys,json; print(json.load(sys.stdin)['sudo_password'], end='')"
-```
-Use `printf 'PASSWORD\n' | sudo -S -k COMMAND`. The `-k` flag forces fresh
-authentication. `pam_faillock` active — 3 failed attempts lock account. Reset:
-`faillock --user mayurifag --reset`.
+`secrets.json` and `proxies.conf` are git-crypt-encrypted in repo (GPG mode).
+Fresh clone: `git-crypt unlock`. Authorize key: `git-crypt add-gpg-user <keyid>`.
 
-**Windows:** Scripts use `#Requires -RunAsAdministrator`.
+Sudo password lookup (scripts use `read_secret <key>`, manual:
+`jq -r .sudo_password secrets.json` — macOS key is `macos_sudo_password`).
+Use `printf '%s\n' "$pw" | sudo -S -k CMD`; `-k` forces fresh auth. Linux
+`pam_faillock` locks after 3 fails: `faillock --user mayurifag --reset`.
+
+Windows: `#Requires -RunAsAdministrator`.
 
 ## Project Layout
 
 ~~~
-proxies.conf                      source-of-truth routing config: per-tag [domains/geosites/geoips] sections
-Makefile                          platform-detecting wrapper for setup/test/generate-config/etc.
-secrets.ejson                     encrypted: { sudo_password, macos_sudo_password, proxy_*.sub_url }
+proxies.conf                      git-crypt-encrypted: per-tag [domains/geosites/geoips] sections
+secrets.json                      git-crypt-encrypted: sudo_password, macos_sudo_password, proxy_*.sub_url
+Makefile                          platform-detecting wrapper for setup/test/ci/doctor/etc.
+pyproject.toml + uv.lock          dev tool deps (ruff). uv manages env.
+.python-version                   pinned dev interpreter (3.13)
+.githooks/pre-commit              blocks plaintext-staged crypto file commits
 
 shared/sub_parse.py               fetch sub URL → base64-decode → parse first proxy URI → sing-box outbound dict
 shared/geo_convert.py             v2ray geosite.dat / geoip.dat → sing-box JSON rule-sets (per category)
 shared/proxies_conf.py            parser/editor for proxies.conf (load/dump + add-domain/remove-domain CLI)
-shared/build_config.py            assemble final sing-box config: inlined base + parsed outbounds + rules expanded from proxies.conf
-shared/generate_config.sh         print sing-box config to stdout (used by setup via redirect, also by `make generate-config`)
-shared/test_core.sh               cross-platform integration test (teardown→down→setup→distinct→QUIC→DNS)
+shared/build_config.py            assemble final sing-box config; validates secrets covers proxies tags
+shared/generate_config.sh         print sing-box config to stdout (used by setup via redirect)
+shared/test_core.sh               cross-platform integration test
 shared/update_geodata_core.sh     cross-platform geodata download + .dat→json conversion
-shared/common.sh                  cross-platform bash helpers (format_domain, get_proxy_tags, generate_singbox_config, git, ejson)
-shared/{add,remove}_domain.sh     cross-platform domain editor (delegates write to proxies_conf.py)
-shared/constants.{sh,ps1}         versions, geodata URLs, test URLs — single source of truth
+shared/ci_core.sh                 shared CI driver (shell syntax, ruff, git-crypt status, lock-aware)
+shared/doctor_core.sh             prereq + state audit (jq/gpg/git-crypt/uv/ruff/hooks/secrets ↔ proxies)
+shared/common.sh                  helpers: format_domain, read_secret (jq), assert_root, elevate_and_run, git_*
+shared/{add,remove}_domain.sh     cross-platform domain editor
+shared/constants.sh               versions, geodata URLs, test URLs, OS_TAG/SUDO_KEY/OS_COMMON dispatch
+shared/constants.ps1              same for Windows
 
-linux/setup.sh                    download sing-box-extended → geo + rule-sets → build config → systemd unit
-linux/teardown.sh                 stop/disable/remove unit
-linux/test.sh                     thin wrapper that exec's shared/test_core.sh
-linux/ci.sh                       shell + python + proxies.conf parse
-linux/{add,remove}_domain.sh      thin wrappers around shared/{add,remove}_domain.sh
-linux/generate_config.sh          thin wrapper around shared/generate_config.sh
-linux/update_geodata.sh           thin wrapper that exec's shared/update_geodata_core.sh
-linux/common.sh                   linux helpers: paths, restart_proxy
+linux/{setup,teardown,test,ci,doctor,generate_config,update_geodata,...}.sh
+linux/common.sh                   linux paths + restart_proxy (systemctl)
 
-macos/setup.sh                    download → geo + rule-sets → build config → install LaunchDaemon → wait for utun
-macos/teardown.sh                 bootout + remove plists
-macos/test.sh                     thin wrapper that exec's shared/test_core.sh (HTTP/3 via brew curl)
-macos/ci.sh                       shell + plist + python + proxies.conf parse
-macos/{add,remove}_domain.sh      thin wrappers
-macos/generate_config.sh          thin wrapper around shared/generate_config.sh
-macos/update_geodata.sh           thin wrapper that exec's shared/update_geodata_core.sh
-macos/common.sh                   macOS helpers: assert_root, ensure_curl_http3, restart_proxy
+macos/{setup,teardown,test,ci,doctor,generate_config,update_geodata,...}.sh
+macos/common.sh                   macOS paths + ensure_curl_http3 + restart_proxy (launchctl)
 macos/plists/*.plist              LaunchDaemon templates with __REPO_ROOT__ placeholder
-macos/runtime/                    gitignored: binary, generated config, rule-sets, geodata, logs
 
-windows/setup.ps1                 download → geo + rule-sets → build config → register Scheduled Task → wait TUN
-windows/teardown.ps1              stop processes, remove tasks
-windows/test.ps1                  full integration cycle: teardown → verify direct → setup → verify all
-windows/{add,remove}_domain.ps1   domain editor (delegates write to shared/proxies_conf.py)
-windows/generate_config.ps1       print sing-box config to stdout
-windows/update_geodata.ps1        daily geodata refresh + JSON conversion
-windows/ci.ps1                    PowerShell parser + JSON + proxies.conf lint
+windows/{setup,teardown,test,ci,doctor,generate_config,update_geodata,...}.ps1
 windows/common.ps1                helpers: Assert-Admin, Build-SingboxConfig, Restart-Proxy, Format-Domain
-windows/runtime/                  gitignored: binary, generated config, rule-sets, geodata, logs
+
+.github/workflows/ci.yml          GHA: ruff lint + shell/pwsh syntax + GITCRYPT-magic check (locked clone)
+{linux,macos,windows}/runtime/    gitignored: binary, generated config, rule-sets, geodata, logs
 ~~~
 
 ## proxies.conf format
@@ -83,8 +72,8 @@ per line, no leading whitespace, alphabetical (writer enforces sort + dedup).
 blank lines allowed in input but not preserved on rewrite.
 
 ~~~
-[<tag>.domains]      # exact-match domains routed via this outbound
-example.com
+[<tag>.domains]      # suffix-match: apex + all subdomains
+mayurifag.ru
 
 [<tag>.geosites]     # geosite category names (without "geosite-" prefix)
 telegram
@@ -93,9 +82,14 @@ telegram
 twitter
 ~~~
 
-`build_config.py` expands each section into `route.rule_set` entries +
-`route.rules` (one `domain` rule + one `rule_set` rule per tag). Static base
-config (log/dns/inbounds/sniff+hijack/final) is inlined in `build_config.py`.
+`<tag>` names a sing-box outbound. Reserved tag `direct` routes via the
+built-in direct outbound and needs no `sub_url` in `secrets.json`; used for
+VPS panel hostnames + sites that should bypass the proxy. `direct` rules are
+emitted before proxy rules so VPS hosts overlapping a geosite still bypass.
+
+`domains` entries become sing-box `domain_suffix` rules — listing
+`mayurifag.ru` covers `mayurifag.ru` and `*.mayurifag.ru`. Static base config
+(log/dns/inbounds/sniff+hijack/final) is inlined in `build_config.py`.
 
 ## Outbounds
 

@@ -1,4 +1,4 @@
-.PHONY: ci setup teardown restart test status logs flush-dns update-geodata add-domain remove-domain generate-config
+.PHONY: ci setup teardown restart test status logs flush-dns update-geodata add-domain remove-domain generate-config doctor unlock lock install-hooks
 
 # ── platform detection ────────────────────────────────────────────────────────
 ifeq ($(OS),Windows_NT)
@@ -15,6 +15,7 @@ ifeq ($(OS),Windows_NT)
   cmd_rm_domain    := $(PS) windows/remove_domain.ps1 $(domain)
   cmd_ci           := $(PS) windows/ci.ps1
   cmd_gen_config   := $(PS) windows/generate_config.ps1
+  cmd_doctor       := $(PS) windows/doctor.ps1
 else ifeq ($(shell uname),Darwin)
   cmd_setup        := bash macos/setup.sh
   cmd_teardown     := bash macos/teardown.sh
@@ -27,6 +28,7 @@ else ifeq ($(shell uname),Darwin)
   cmd_rm_domain    := bash macos/remove_domain.sh $(domain)
   cmd_ci           := bash macos/ci.sh
   cmd_gen_config   := bash macos/generate_config.sh
+  cmd_doctor       := bash macos/doctor.sh
 else
   cmd_setup        := bash linux/setup.sh
   cmd_teardown     := bash linux/teardown.sh
@@ -39,6 +41,7 @@ else
   cmd_rm_domain    := bash linux/remove_domain.sh $(domain)
   cmd_ci           := bash linux/ci.sh
   cmd_gen_config   := bash linux/generate_config.sh
+  cmd_doctor       := bash linux/doctor.sh
 endif
 
 # ── targets ───────────────────────────────────────────────────────────────────
@@ -76,3 +79,16 @@ remove-domain:
 
 generate-config:
 	$(cmd_gen_config)
+
+doctor:
+	$(cmd_doctor)
+
+unlock:
+	git-crypt unlock
+
+lock:
+	git-crypt lock
+
+install-hooks:
+	git config core.hooksPath .githooks
+	@echo 'pre-commit hook active.'
