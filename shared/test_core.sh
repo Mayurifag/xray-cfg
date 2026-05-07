@@ -28,7 +28,7 @@ for pair in "it=$IT" "ru=$RU"; do
 done
 echo "  All checkers agree on real IP: $DIRECT"
 
-python3 shared/proxies_conf.py tags proxies.conf >/dev/null || { echo 'proxies.conf invalid' >&2; exit 1; }
+uv run --quiet python shared/proxies_conf.py tags proxies.conf >/dev/null || { echo 'proxies.conf invalid' >&2; exit 1; }
 
 echo '=== Setup ==='
 bash "$SETUP"
@@ -74,7 +74,7 @@ RESOLVED=$(eval "$DNS_CHECK_CMD")
 echo "  checkip.amazonaws.com -> $RESOLVED"
 
 echo '=== Verify: rule-set integrity ==='
-expected=$(python3 - <<'PY'
+expected=$(uv run --quiet python - <<'PY'
 import os, sys
 sys.path.insert(0, 'shared')
 from proxies_conf import all_of_kind, load

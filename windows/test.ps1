@@ -87,16 +87,17 @@ if ((Test-Path $probeRuleset) -and $ruIp) {
 Write-Host '=== Verify: rule-set integrity ===' -ForegroundColor Cyan
 $expected = @()
 try {
-    $py = Get-PythonExe
-    $expected = & $py.Exe @($py.PrefixArgs + @(
-        '-c', @"
+    Push-Location $RepoRoot
+    try {
+        $expected = & uv run --quiet python -c @"
 import sys; sys.path.insert(0, 'shared')
 from proxies_conf import all_of_kind, load
 d = load('proxies.conf')
 for c in all_of_kind(d, 'geosites'): print(f'geosite-{c}.json')
 for c in all_of_kind(d, 'geoips'):   print(f'geoip-{c}.json')
 "@
-    )) | Where-Object { $_ }
+    } finally { Pop-Location }
+    $expected = $expected | Where-Object { $_ }
 } catch { Write-Result 'rule-set: list expected' $false -Detail $_ }
 if ($expected) {
     $actual = @(Get-ChildItem -Path $RuleSetDir -Filter '*.json' -ErrorAction SilentlyContinue |

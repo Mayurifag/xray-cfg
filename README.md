@@ -7,15 +7,18 @@ URLs.
 
 - No GUI, no tray app — runs as a system service.
 - Auto-installed in autostart (systemd / LaunchDaemon / Scheduled Task).
-- Two outbounds + direct: route Russian-only sites through one, blocked sites
-  through another, everything else direct.
-- Outbound configs come from **subscription URLs** (one per outbound). 
-  Re-fetched on every `setup`.
+- Two proxy outbounds + direct: Russian-only sites via one, blocked sites via
+  another, everything else direct. The `direct` routing tag also catches VPS
+  panel domains (suffix match) so the proxy server itself is never tunneled.
+- Proxy outbounds come from **subscription URLs** (one per proxy). Re-fetched
+  on every `setup`.
 - runetfreedom geoip + geosite lists, refreshed daily, converted at install time
   to sing-box JSON rule-sets.
 - Currently supports hysteria2 and VLESS/xhttp/Reality.
 - DNS-over-HTTPS to 1.1.1.1 / 8.8.8.8.
-- Credentials (sub URLs, sudo passwords) encrypted via `ejson`.
+- `secrets.json` (sub URLs, sudo passwords) and `proxies.conf` are
+  [git-crypt](https://github.com/AGWA/git-crypt)-encrypted in repo (GPG mode);
+  plaintext after `git-crypt unlock`.
 - Linux (systemd), macOS (LaunchDaemon), Windows (Scheduled Task) — same
   `proxies.conf`, same Python build pipeline.
 
@@ -40,15 +43,21 @@ All three are anti-detection polish, not auth — connections still succeed.
 
 ## Prerequisites
 
-| OS      | Required                                         |
-| ------- | ------------------------------------------------ |
-| Linux   | `ejson`, `python3` (3.9+), `curl`, `systemd`     |
-| macOS   | `ejson`, `python3`, brew `curl` for HTTP/3 tests |
-| Windows | `ejson`, Python 3.9+ in `PATH`, `make`           |
+| OS      | Required                                              |
+| ------- | ----------------------------------------------------- |
+| Linux   | `git-crypt`, `gnupg`, `jq`, `uv`, `curl`, `systemd`   |
+| macOS   | `git-crypt`, `gnupg`, `jq`, `uv`, brew `curl` for HTTP/3 |
+| Windows | `git-crypt`, `gnupg`, `jq`, `uv`, `make`              |
+
+`uv` provides the Python interpreter (3.14, pinned via `.python-version`)
+plus dev tools (ruff) via `pyproject.toml` + `uv.lock`. No system Python
+needed — `uv python install` materialises 3.14 on first `uv run`. Plus a GPG
+keypair authorized to unlock the repo (see [Encrypted secrets](#encrypted-secrets)).
+Run `make doctor` after a fresh clone to verify everything is wired up.
 
 ### macOS: disable Touch ID for sudo (one-time)
 
-Setup/teardown/test feed the sudo password from `secrets.ejson` via
+Setup/teardown/test feed the sudo password from `secrets.json` via
 `sudo -S -k`. macOS PAM puts Touch ID (`pam_tid.so`) ahead of stdin auth, so
 `sudo` pops a dialog every run. Disable for sudo only:
 
@@ -72,16 +81,25 @@ Restore: `sudo cp /etc/pam.d/sudo_local.bak.proxiescfg /etc/pam.d/sudo_local`.
 | `make flush-dns`       | flush DNS cache                              |
 | `make update-geodata`  | refresh runetfreedom .dat → JSON rule-sets   |
 | `make generate-config` | print sing-box config to stdout (inspection) |
+| `make ci`              | shell + python + ruff + git-crypt status     |
+| `make doctor`          | verify all prereqs + repo state              |
+| `make unlock`          | git-crypt unlock (after fresh clone)         |
+| `make lock`            | git-crypt lock (purge plaintext from WT)     |
+| `make install-hooks`   | wire `.githooks/` (pre-commit crypto guard)  |
 
 ## Domains
 
 ~~~sh
 make add-domain domain=kremlin.ru proxy=proxy_ru
+make add-domain domain=cloud.ru   proxy=direct
 make remove-domain domain=kremlin.ru
 make add-domain   # interactive prompt
 ~~~
 
-Edits `proxies.conf` then restarts the proxy.
+Routing tags: `proxy_ru`, `proxy_it` (subscription-driven), `direct` (built-in
+bypass). All `domains` entries are suffix-matched — `mayurifag.ru` catches
+`mayurifag.ru` and `*.mayurifag.ru`. Edits `proxies.conf` and restarts the
+proxy.
 
 ## Suggested shell aliases
 
@@ -117,6 +135,43 @@ function proxy-geodata   { make -C $ProxiesCfg update-geodata }
 function proxy-add($d, $p = 'proxy_it') { make -C $ProxiesCfg add-domain    domain=$d proxy=$p }
 function proxy-rm($d)                   { make -C $ProxiesCfg remove-domain domain=$d }
 function proxy-remove($d)               { proxy-rm $d }
+~~~
+
+## Encrypted secrets
+
+`secrets.json` + `proxies.conf` are git-crypt-encrypted in repo (GPG mode).
+Working tree plaintext after unlock; remote stores ciphertext.
+
+### Fresh clone (your GPG key already imported)
+
+~~~sh
+# macOS
+brew install git-crypt gnupg jq uv
+
+# Debian/Ubuntu
+sudo apt install git-crypt gnupg jq
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (winget)
+winget install AGWA.git-crypt GnuPG.GnuPG jqlang.jq astral-sh.uv
+
+git clone <url>
+cd proxies-cfg
+make unlock           # git-crypt unlock
+make install-hooks    # arms .githooks/pre-commit
+make doctor           # sanity-check everything
+~~~
+
+GPG key needs an encryption subkey (`[E]` flag). Verify:
+`gpg --list-secret-keys --with-subkey-fingerprints <email>` — look for
+`ssb … [E]`. If missing: `gpg --edit-key <keyid>` → `addkey` → encrypt-only →
+`save`, re-publish the public key.
+
+### Authorize another GPG key
+
+~~~sh
+git-crypt add-gpg-user <keyid>
+git push
 ~~~
 
 ## Notes

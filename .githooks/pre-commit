@@ -1,0 +1,14 @@
+#!/bin/bash
+# Block commits that would push plaintext through git-crypt-marked files.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+if ! command -v git-crypt >/dev/null; then
+    exit 0
+fi
+
+if git-crypt status 2>&1 | grep -qF 'NOT ENCRYPTED'; then
+    echo 'pre-commit: tracked file marked for encryption is staged plaintext.' >&2
+    echo "Run 'git-crypt status -f' to re-stage encrypted, then retry." >&2
+    exit 1
+fi

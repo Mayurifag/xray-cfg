@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: sync dev deps
+        run: uv sync --frozen --group dev
+
+      - name: ruff check
+        run: uv run ruff check shared/
+
+      - name: ruff format check
+        run: uv run ruff format --check shared/
+
+      - name: bash syntax
+        run: |
+          set -e
+          for f in linux/*.sh macos/*.sh shared/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: powershell syntax
+        shell: pwsh
+        run: |
+          $errs = 0
+          Get-ChildItem -Path windows,shared -Filter *.ps1 -Recurse | ForEach-Object {
+            $tokens = $null; $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              Write-Host "PARSE FAIL: $($_.FullName)"
+              $errors | ForEach-Object { Write-Host "  $_" }
+              $errs++
+            }
+          }
+          if ($errs -gt 0) { Write-Error "PowerShell parse failures: $errs"; exit 1 }
+
+      - name: encrypted files have GITCRYPT magic
+        run: |
+          set -e
+          for f in proxies.conf secrets.json; do
+            test -f "$f" || continue
+            magic=$(head -c10 "$f" | xxd -p)
+            if [[ "$magic" != "00474954435259505400" ]]; then
+              echo "ERROR: $f is not git-crypt-encrypted on remote (magic=$magic)"
+              exit 1
+            fi
+          done

@@ -35,12 +35,42 @@ foreach ($j in Get-ChildItem -Path $RepoRoot -Filter '*.json' -File -Recurse |
     }
 }
 
-$tagsArgs = @((Join-Path $RepoRoot 'shared\proxies_conf.py'), 'tags', $ProxiesConf)
-try {
-    Invoke-Python -Arguments $tagsArgs | Out-Null
-} catch {
-    Write-Host "PROXIES.CONF FAIL: $_" -ForegroundColor Red
-    $failed++
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    Write-Error 'uv required (https://astral.sh/uv).'
+    exit 1
+}
+& uv run ruff check (Join-Path $RepoRoot 'shared')
+if ($LASTEXITCODE -ne 0) { $failed++ }
+& uv run ruff format --check (Join-Path $RepoRoot 'shared')
+if ($LASTEXITCODE -ne 0) { $failed++ }
+
+$locked = $false
+if (Test-Path $ProxiesConf) {
+    $magic = [byte[]](Get-Content $ProxiesConf -AsByteStream -TotalCount 9 -ErrorAction SilentlyContinue)
+    if ($magic -and $magic.Length -ge 9 -and $magic[0] -eq 0 -and
+        ([System.Text.Encoding]::ASCII.GetString($magic[1..8]) -eq 'GITCRYPT')) {
+        $locked = $true
+    }
+}
+
+if (-not $locked) {
+    $tagsArgs = @((Join-Path $RepoRoot 'shared\proxies_conf.py'), 'tags', $ProxiesConf)
+    try {
+        Invoke-Python -Arguments $tagsArgs | Out-Null
+    } catch {
+        Write-Host "PROXIES.CONF FAIL: $_" -ForegroundColor Red
+        $failed++
+    }
+
+    if (Get-Command git-crypt -ErrorAction SilentlyContinue) {
+        $crypt = & git-crypt status 2>&1
+        if ($crypt -match 'NOT ENCRYPTED') {
+            Write-Host "GIT-CRYPT FAIL: tracked file is staged plaintext. Run 'git-crypt status -f'." -ForegroundColor Red
+            $failed++
+        }
+    }
+} else {
+    Write-Host '[windows] proxies.conf locked — skipping plaintext-dependent checks'
 }
 
 if ($failed -gt 0) {
@@ -48,4 +78,4 @@ if ($failed -gt 0) {
     exit 1
 }
 
-Write-Output 'windows ci: PowerShell parse + JSON + proxies.conf pass (run `make test` for full e2e)'
+Write-Output 'windows ci: PowerShell parse + JSON + ruff + git-crypt pass'

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Fetch a subscription URL, base64-decode the body, parse the first proxy
-URI on the line, and emit a sing-box-extended outbound JSON dict.
+"""Fetch a subscription URL, parse first proxy URI, emit sing-box outbound JSON.
+
+Base64-decode the body, parse the first proxy URI on a line, and emit a
+sing-box-extended outbound JSON dict.
 
 Supported schemes:
     hysteria2://password@host:port?...   (alpn=h3 mandatory for QUIC)
@@ -12,6 +14,7 @@ Usage:
 
 Hard-aborts on fetch error, decode error, or unknown scheme.
 """
+
 from __future__ import annotations
 
 import base64
@@ -23,18 +26,19 @@ import urllib.request
 
 
 def fetch_first_uri(sub_url: str) -> str:
-    req = urllib.request.Request(sub_url, headers={'User-Agent': 'sing-box/1.13'})
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    req = urllib.request.Request(sub_url, headers={"User-Agent": "sing-box/1.13"})  # noqa: S310
+    with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
         body = resp.read()
-    decoded = base64.b64decode(body).decode('utf-8', errors='strict')
-    for line in decoded.splitlines():
-        line = line.strip()
-        if line and re.match(r'^[a-z0-9]+://', line):
+    decoded = base64.b64decode(body).decode("utf-8", errors="strict")
+    for raw in decoded.splitlines():
+        line = raw.strip()
+        if line and re.match(r"^[a-z0-9]+://", line):
             return line
-    raise RuntimeError(f'no proxy URI found in subscription body: {decoded!r}')
+    msg = f"no proxy URI found in subscription body: {decoded!r}"
+    raise RuntimeError(msg)
 
 
-def _query_first(query: dict, key: str, default: str = '') -> str:
+def _query_first(query: dict, key: str, default: str = "") -> str:
     values = query.get(key, [])
     return values[0] if values else default
 
@@ -42,37 +46,37 @@ def _query_first(query: dict, key: str, default: str = '') -> str:
 def parse_hysteria2(uri: str, tag: str) -> dict:
     parsed = urllib.parse.urlparse(uri)
     query = urllib.parse.parse_qs(parsed.query)
-    password = urllib.parse.unquote(parsed.username or '')
-    host = parsed.hostname or ''
+    password = urllib.parse.unquote(parsed.username or "")
+    host = parsed.hostname or ""
     port = parsed.port or 443
-    sni = _query_first(query, 'sni', host)
-    alpn = _query_first(query, 'alpn', 'h3')
+    sni = _query_first(query, "sni", host)
+    alpn = _query_first(query, "alpn", "h3")
 
     out = {
-        'type': 'hysteria2',
-        'tag': tag,
-        'server': host,
-        'server_port': port,
-        'password': password,
-        'tls': {
-            'enabled': True,
-            'server_name': sni,
-            'alpn': alpn.split(','),
+        "type": "hysteria2",
+        "tag": tag,
+        "server": host,
+        "server_port": port,
+        "password": password,
+        "tls": {
+            "enabled": True,
+            "server_name": sni,
+            "alpn": alpn.split(","),
         },
     }
 
-    obfs_type = _query_first(query, 'obfs')
+    obfs_type = _query_first(query, "obfs")
     if obfs_type:
-        out['obfs'] = {
-            'type': obfs_type,
-            'password': _query_first(query, 'obfs-password'),
+        out["obfs"] = {
+            "type": obfs_type,
+            "password": _query_first(query, "obfs-password"),
         }
 
-    ech = _query_first(query, 'ech')
+    ech = _query_first(query, "ech")
     if ech:
-        out['tls']['ech'] = {
-            'enabled': True,
-            'config': [_ech_to_pem(ech)],
+        out["tls"]["ech"] = {
+            "enabled": True,
+            "config": [_ech_to_pem(ech)],
         }
     # fp/utls intentionally skipped for hysteria2: sing-box rejects uTLS over QUIC.
     # fm intentionally skipped: duplicates `obfs` data.
@@ -82,64 +86,64 @@ def parse_hysteria2(uri: str, tag: str) -> dict:
 def parse_vless(uri: str, tag: str) -> dict:
     parsed = urllib.parse.urlparse(uri)
     query = urllib.parse.parse_qs(parsed.query)
-    uuid = parsed.username or ''
-    host = parsed.hostname or ''
+    uuid = parsed.username or ""
+    host = parsed.hostname or ""
     port = parsed.port or 443
-    sni = _query_first(query, 'sni', host)
-    security = _query_first(query, 'security')
-    transport_type = _query_first(query, 'type')
-    fp = _query_first(query, 'fp')
+    sni = _query_first(query, "sni", host)
+    security = _query_first(query, "security")
+    transport_type = _query_first(query, "type")
+    fp = _query_first(query, "fp")
 
     tls = {
-        'enabled': bool(security in ('tls', 'reality')),
-        'server_name': sni,
+        "enabled": bool(security in ("tls", "reality")),
+        "server_name": sni,
     }
-    alpn = _query_first(query, 'alpn')
+    alpn = _query_first(query, "alpn")
     if alpn:
-        tls['alpn'] = alpn.split(',')
-    elif transport_type == 'xhttp':
-        tls['alpn'] = ['h2']
+        tls["alpn"] = alpn.split(",")
+    elif transport_type == "xhttp":
+        tls["alpn"] = ["h2"]
     if fp:
-        tls['utls'] = {'enabled': True, 'fingerprint': fp}
-    if security == 'reality':
-        tls['reality'] = {
-            'enabled': True,
-            'public_key': _query_first(query, 'pbk'),
-            'short_id': _query_first(query, 'sid'),
+        tls["utls"] = {"enabled": True, "fingerprint": fp}
+    if security == "reality":
+        tls["reality"] = {
+            "enabled": True,
+            "public_key": _query_first(query, "pbk"),
+            "short_id": _query_first(query, "sid"),
         }
-    ech = _query_first(query, 'ech')
+    ech = _query_first(query, "ech")
     if ech:
-        tls['ech'] = {'enabled': True, 'config': [_ech_to_pem(ech)]}
+        tls["ech"] = {"enabled": True, "config": [_ech_to_pem(ech)]}
 
     out = {
-        'type': 'vless',
-        'tag': tag,
-        'server': host,
-        'server_port': port,
-        'uuid': uuid,
+        "type": "vless",
+        "tag": tag,
+        "server": host,
+        "server_port": port,
+        "uuid": uuid,
     }
-    if tls['enabled']:
-        out['tls'] = tls
+    if tls["enabled"]:
+        out["tls"] = tls
 
-    if transport_type == 'xhttp':
-        host_hdr = _query_first(query, 'host') or sni
-        out['transport'] = {
-            'type': 'xhttp',
-            'path': _query_first(query, 'path', '/'),
-            'host': host_hdr,
-            'mode': _query_first(query, 'mode', 'auto'),
-            'x_padding_bytes': '100-1000',
+    if transport_type == "xhttp":
+        host_hdr = _query_first(query, "host") or sni
+        out["transport"] = {
+            "type": "xhttp",
+            "path": _query_first(query, "path", "/"),
+            "host": host_hdr,
+            "mode": _query_first(query, "mode", "auto"),
+            "x_padding_bytes": "100-1000",
         }
-    elif transport_type == 'ws':
-        out['transport'] = {
-            'type': 'ws',
-            'path': _query_first(query, 'path', '/'),
-            'headers': {'Host': _query_first(query, 'host', sni)},
+    elif transport_type == "ws":
+        out["transport"] = {
+            "type": "ws",
+            "path": _query_first(query, "path", "/"),
+            "headers": {"Host": _query_first(query, "host", sni)},
         }
-    elif transport_type == 'grpc':
-        out['transport'] = {
-            'type': 'grpc',
-            'service_name': _query_first(query, 'serviceName'),
+    elif transport_type == "grpc":
+        out["transport"] = {
+            "type": "grpc",
+            "service_name": _query_first(query, "serviceName"),
         }
     # spx (Reality spiderX): no schema in sing-box-extended, skipped.
     return out
@@ -147,22 +151,27 @@ def parse_vless(uri: str, tag: str) -> dict:
 
 def _ech_to_pem(ech_param: str) -> str:
     raw = base64.b64decode(urllib.parse.unquote(ech_param))
-    encoded = base64.b64encode(raw).decode('ascii')
-    lines = [encoded[i:i+64] for i in range(0, len(encoded), 64)]
-    return '-----BEGIN ECH CONFIGS-----\n' + '\n'.join(lines) + '\n-----END ECH CONFIGS-----\n'
+    encoded = base64.b64encode(raw).decode("ascii")
+    lines = [encoded[i : i + 64] for i in range(0, len(encoded), 64)]
+    return (
+        "-----BEGIN ECH CONFIGS-----\n"
+        + "\n".join(lines)
+        + "\n-----END ECH CONFIGS-----\n"
+    )
 
 
 PARSERS = {
-    'hysteria2': parse_hysteria2,
-    'vless': parse_vless,
+    "hysteria2": parse_hysteria2,
+    "vless": parse_vless,
 }
 
 
 def parse_uri(uri: str, tag: str) -> dict:
-    scheme = uri.split('://', 1)[0].lower()
+    scheme = uri.split("://", 1)[0].lower()
     parser = PARSERS.get(scheme)
     if parser is None:
-        raise RuntimeError(f'unsupported scheme: {scheme!r} (uri: {uri!r})')
+        msg = f"unsupported scheme: {scheme!r} (uri: {uri!r})"
+        raise RuntimeError(msg)
     return parser(uri, tag)
 
 
@@ -179,5 +188,5 @@ def main() -> int:
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
