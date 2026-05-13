@@ -148,14 +148,24 @@ function Invoke-GitPullIfClean {
     if ($env:NO_GIT) { return }
     Push-Location $Path
     try {
-        $branch  = git rev-parse --abbrev-ref HEAD 2>$null
-        $default = git symbolic-ref refs/remotes/origin/HEAD 2>$null
+        $branch = & git rev-parse --abbrev-ref HEAD 2>$null
+        if ($LASTEXITCODE -ne 0) { return }
+        $default = & git symbolic-ref refs/remotes/origin/HEAD 2>$null
+        if ($LASTEXITCODE -ne 0) { return }
         if ($default) { $default = $default -replace 'refs/remotes/origin/', '' }
         if ($branch -and $default -and $branch -eq $default) {
-            $unpushed = git log "origin/${branch}..HEAD" --oneline 2>$null
+            & git diff --quiet
+            if ($LASTEXITCODE -eq 1) { return }
+            if ($LASTEXITCODE -ne 0) { throw "git diff --quiet failed (exit $LASTEXITCODE)" }
+            & git diff --cached --quiet
+            if ($LASTEXITCODE -eq 1) { return }
+            if ($LASTEXITCODE -ne 0) { throw "git diff --cached --quiet failed (exit $LASTEXITCODE)" }
+            $unpushed = & git log "origin/${branch}..HEAD" --oneline 2>$null
+            if ($LASTEXITCODE -ne 0) { return }
             if (-not $unpushed) {
                 Write-Host 'Pulling latest changes...'
-                git pull --ff-only
+                & git pull --ff-only
+                if ($LASTEXITCODE -ne 0) { throw "git pull --ff-only failed (exit $LASTEXITCODE)" }
             }
         }
     } finally { Pop-Location }
@@ -166,12 +176,18 @@ function Invoke-GitCommitAndPush {
     if ($env:NO_GIT) { return }
     Push-Location $Path
     try {
-        git add proxies.conf
-        if (git status --porcelain proxies.conf) {
-            git commit -m $CommitMessage
-            git push
-            Write-Host 'Changes committed and pushed.'
-        }
+        & git diff --quiet HEAD -- proxies.conf
+        $diffExit = $LASTEXITCODE
+        if ($diffExit -eq 0) { return }
+        if ($diffExit -ne 1) { throw "git diff HEAD -- proxies.conf failed (exit $diffExit)" }
+
+        & git add proxies.conf
+        if ($LASTEXITCODE -ne 0) { throw "git add proxies.conf failed (exit $LASTEXITCODE)" }
+        & git commit -m $CommitMessage -- proxies.conf
+        if ($LASTEXITCODE -ne 0) { throw "git commit failed (exit $LASTEXITCODE)" }
+        & git push
+        if ($LASTEXITCODE -ne 0) { throw "git push failed (exit $LASTEXITCODE)" }
+        Write-Host 'Changes committed and pushed.'
     } finally { Pop-Location }
 }
 

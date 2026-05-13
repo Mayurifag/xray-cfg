@@ -6,12 +6,23 @@ source linux/common.sh
 
 assert_root "$@"
 
+systemd_quote() {
+	local s="$1"
+	s=${s//%/%%}
+	s=${s//\\/\\\\}
+	s=${s//\"/\\\"}
+	printf '"%s"' "$s"
+}
+
 mkdir -p "$RUNTIME_DIR/bin" "$RULE_SET_DIR" "$GEODATA_DIR"
 
 case "$(uname -m)" in
-    x86_64)  SINGBOX_ARCH=linux-amd64 ;;
-    aarch64) SINGBOX_ARCH=linux-arm64 ;;
-    *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
+x86_64) SINGBOX_ARCH=linux-amd64 ;;
+aarch64) SINGBOX_ARCH=linux-arm64 ;;
+*)
+	echo "Unsupported arch: $(uname -m)" >&2
+	exit 1
+	;;
 esac
 export SINGBOX_ARCH SINGBOX_BIN RUNTIME_DIR
 
@@ -28,8 +39,9 @@ echo '[setup] validate config'
 "$SINGBOX_BIN" check -c "$SINGBOX_CONFIG"
 
 echo "[setup] install systemd unit ($SERVICE_NAME)"
-SINGBOX_BIN_ABS="$(pwd)/$SINGBOX_BIN"
-SINGBOX_CONFIG_ABS="$(pwd)/$SINGBOX_CONFIG"
+SINGBOX_BIN_ABS=$(systemd_quote "$(pwd)/$SINGBOX_BIN")
+SINGBOX_CONFIG_ABS=$(systemd_quote "$(pwd)/$SINGBOX_CONFIG")
+REPO_ROOT_SYSTEMD=$(systemd_quote "$(pwd)")
 tee "/etc/systemd/system/$SERVICE_NAME.service" >/dev/null <<EOF
 [Unit]
 Description=proxies-cfg sing-box-extended TUN proxy
@@ -57,7 +69,7 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=$(pwd)
+WorkingDirectory=$REPO_ROOT_SYSTEMD
 ExecStart=/bin/bash linux/update_geodata.sh
 EOF
 
@@ -81,18 +93,23 @@ systemctl enable --now proxies-cfg-geodata.timer
 echo '[setup] wait for TUN'
 deadline=$(($(date +%s) + 15))
 tun_iface=""
-while (( $(date +%s) < deadline )); do
-    tun_iface=$(ip -o addr show | awk -v ip="$TUN_INET" '$3 == "inet" && $4 ~ ip { print $2; exit }')
-    [[ -n "$tun_iface" ]] && break
-    sleep 1
+while (($(date +%s) < deadline)); do
+	tun_iface=$(ip -o addr show | awk -v ip="$TUN_INET" '$3 == "inet" && $4 ~ ip { print $2; exit }')
+	[[ -n "$tun_iface" ]] && break
+	sleep 1
 done
-[[ -n "$tun_iface" ]] || { systemctl status "$SERVICE_NAME" --no-pager >&2; journalctl -u "$SERVICE_NAME" --no-pager -n 50 >&2; echo "FAIL: TUN $TUN_INET not up in 15s" >&2; exit 1; }
+[[ -n "$tun_iface" ]] || {
+	systemctl status "$SERVICE_NAME" --no-pager >&2
+	journalctl -u "$SERVICE_NAME" --no-pager -n 50 >&2
+	echo "FAIL: TUN $TUN_INET not up in 15s" >&2
+	exit 1
+}
 echo "[setup] TUN: $tun_iface"
 
 resolvectl flush-caches 2>/dev/null || true
 
 for url in "${ALL_TEST_URLS[@]}"; do
-    curl -sS --max-time 10 -o /dev/null "$url" && echo "  prefetch ok: $url" || echo "  prefetch warn: $url"
+	curl -sS --max-time 10 -o /dev/null "$url" && echo "  prefetch ok: $url" || echo "  prefetch warn: $url"
 done
 
 echo "[setup] complete. service=$SERVICE_NAME tun=$tun_iface"

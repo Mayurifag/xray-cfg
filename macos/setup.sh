@@ -8,6 +8,21 @@ assert_root "$@"
 
 phase() { echo "[$(date '+%H:%M:%S')] [setup] $*" >&2; }
 
+render_plist() {
+	local src="$1" dst="$2" root="$3"
+	uv run --quiet python - "$src" "$dst" "$root" <<'PY'
+from pathlib import Path
+from sys import argv
+from xml.sax.saxutils import escape
+
+src, dst, root = argv[1:]
+Path(dst).write_text(
+    Path(src).read_text(encoding="utf-8").replace("__REPO_ROOT__", escape(root)),
+    encoding="utf-8",
+)
+PY
+}
+
 mkdir -p "$RUNTIME_DIR" "$SINGBOX_DIR" "$RULE_SET_DIR" "$GEODATA_DIR"
 
 case "$(uname -m)" in
@@ -39,7 +54,7 @@ for label in "${LABELS[@]}"; do
 	dst="$LAUNCH_DAEMON_DIR/$label.plist"
 	launchctl bootout "system/$label" 2>/dev/null || true
 	rm -f "$dst"
-	sed "s|__REPO_ROOT__|$REPO_ROOT_ABS|g" "$src" >"$dst"
+	render_plist "$src" "$dst" "$REPO_ROOT_ABS"
 	chown root:wheel "$dst"
 	chmod 644 "$dst"
 	plutil -lint "$dst" >/dev/null
